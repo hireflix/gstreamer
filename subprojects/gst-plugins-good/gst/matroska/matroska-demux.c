@@ -1123,6 +1123,22 @@ gst_matroska_demux_parse_stream (GstMatroskaDemux * demux, GstEbmlRead * ebml,
               break;
             }
 
+            case GST_MATROSKA_ID_VIDEOALPHAMODE:
+            {
+              guint64 num;
+
+              if ((ret = gst_ebml_read_uint (ebml, &id, &num)) != GST_FLOW_OK)
+                break;
+
+              GST_DEBUG_OBJECT (demux, "AlphaMode: %" G_GUINT64_FORMAT, num);
+
+              if (num == 1)
+                videocontext->alpha_mode = TRUE;
+              else
+                videocontext->alpha_mode = FALSE;
+              break;
+            }
+
             default:
               GST_WARNING_OBJECT (demux,
                   "Unknown TrackVideo subelement 0x%x - ignoring", id);
@@ -5010,7 +5026,24 @@ gst_matroska_demux_parse_blockgroup_or_simpleblock (GstMatroskaDemux * demux,
         while ((blockadd = g_queue_pop_head (&additions))) {
           GstMatroskaTrackVideoContext *videocontext =
               (GstMatroskaTrackVideoContext *) stream;
-          g_free (blockadd->data);
+          if (blockadd->id == 1 && videocontext->alpha_mode
+              && (!strcmp (stream->codec_id, GST_MATROSKA_CODEC_ID_VIDEO_VP8)
+                  || !strcmp (stream->codec_id,
+                      GST_MATROSKA_CODEC_ID_VIDEO_VP9))) {
+            GstBuffer *alpha_buffer;
+
+            GST_TRACE_OBJECT (demux, "adding block addition %u as VP8/VP9 "
+                "alpha meta to buffer %p, %u bytes", (guint) blockadd->id, buf,
+                (guint) blockadd->size);
+
+            alpha_buffer = gst_buffer_new_wrapped (blockadd->data,
+                blockadd->size);
+            gst_buffer_copy_into (alpha_buffer, sub,
+                GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0, -1);
+            gst_buffer_add_video_codec_alpha_meta (sub, alpha_buffer);
+          } else {
+            g_free (blockadd->data);
+          }
           g_free (blockadd);
         }
       }
