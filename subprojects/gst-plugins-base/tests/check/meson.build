@@ -47,9 +47,9 @@ base_tests = [
   [ 'elements/streamsynchronizer.c', get_option('playback').disabled()],
   [ 'elements/subparse.c', get_option('subparse').disabled()],
   [ 'elements/urisourcebin.c', get_option('playback').disabled()],
-  [ 'elements/videoconvert.c', get_option('videoconvert').disabled()],
+  [ 'elements/videoconvert.c', get_option('videoconvertscale').disabled()],
   [ 'elements/videorate.c', get_option('videorate').disabled()],
-  [ 'elements/videoscale.c', get_option('videoscale').disabled()],
+  [ 'elements/videoscale.c', get_option('videoconvertscale').disabled()],
   [ 'elements/videotestsrc.c', get_option('videotestsrc').disabled()],
   [ 'elements/volume.c', get_option('volume').disabled(), [ gst_controller_dep ] ],
   [ 'generic/clock-selection.c' ],
@@ -100,6 +100,7 @@ if build_gstgl and host_machine.system() != 'windows'
     [ 'libs/gstglsl.c', not build_gstgl, [gstgl_dep, gstglproto_dep]],
     [ 'libs/gstglslstage.c', not build_gstgl, [gstgl_dep, gstglproto_dep]],
     [ 'libs/gstglupload.c', not build_gstgl, [gstgl_dep, gstglproto_dep]],
+    [ 'libs/gstglvideomixerelement.c', not build_gstgl, [gstgl_dep, gstglproto_dep]],
     [ 'elements/glimagesink.c', not build_gstgl, [gstgl_dep, gstglproto_dep]],
     [ 'elements/glbin.c', not build_gstgl ],
     [ 'pipelines/gl-launch-lines.c', not build_gstgl ],
@@ -136,7 +137,7 @@ endif
 
 test_deps = [gst_dep, gst_base_dep, gst_net_dep, gst_check_dep, audio_dep,
   video_dep, pbutils_dep, rtp_dep, rtsp_dep, tag_dep, allocators_dep, app_dep,
-  fft_dep, riff_dep, sdp_dep, gio_dep, valgrind_dep] + glib_deps
+  fft_dep, riff_dep, sdp_dep, gio_dep, valgrind_dep]
 
 foreach t : base_tests
   fname = t.get(0)

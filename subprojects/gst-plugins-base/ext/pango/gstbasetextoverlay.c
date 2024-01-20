@@ -430,7 +430,7 @@ gst_base_text_overlay_class_init (GstBaseTextOverlayClass * klass)
    */
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TEXT_Y,
       g_param_spec_int ("text-y", "vertical position",
-          "Resulting X position of font rendering.", -G_MAXINT,
+          "Resulting Y position of font rendering.", -G_MAXINT,
           G_MAXINT, DEFAULT_PROP_TEXT_Y, G_PARAM_READABLE));
 
   /**
@@ -1656,7 +1656,7 @@ gst_base_text_overlay_set_composition (GstBaseTextOverlay * overlay)
   gint xpos, ypos;
   GstVideoOverlayRectangle *rectangle;
 
-  if (overlay->text_image && overlay->text_width != 1) {
+  if (overlay->text_image) {
     gint render_width, render_height;
 
     gst_base_text_overlay_get_pos (overlay, &xpos, &ypos);

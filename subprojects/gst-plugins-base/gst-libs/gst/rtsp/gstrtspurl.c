@@ -59,9 +59,11 @@
 G_DEFINE_BOXED_TYPE (GstRTSPUrl, gst_rtsp_url,
     (GBoxedCopyFunc) gst_rtsp_url_copy, (GBoxedFreeFunc) gst_rtsp_url_free);
 
+#define SCHEME_SIZE 7
+
 static const struct
 {
-  const char scheme[6];
+  const char scheme[SCHEME_SIZE];
   GstRTSPLowerTrans transports;
 } rtsp_schemes_map[] = {
   {
@@ -90,7 +92,7 @@ static const struct
 /**
  * gst_rtsp_url_parse:
  * @urlstr: the url string to parse
- * @url: (out): location to hold the result.
+ * @url: (out) (transfer full) (nullable): location to hold the result.
  *
  * Parse the RTSP @urlstr into a newly allocated #GstRTSPUrl. Free after usage
  * with gst_rtsp_url_free().
@@ -107,6 +109,8 @@ gst_rtsp_url_parse (const gchar * urlstr, GstRTSPUrl ** url)
 
   g_return_val_if_fail (urlstr != NULL, GST_RTSP_EINVAL);
   g_return_val_if_fail (url != NULL, GST_RTSP_EINVAL);
+
+  *url = NULL;
 
   res = g_new0 (GstRTSPUrl, 1);
 
@@ -222,7 +226,7 @@ invalid:
  *
  * Make a copy of @url.
  *
- * Returns: a copy of @url. Free with gst_rtsp_url_free () after usage.
+ * Returns: (transfer full): a copy of @url. Free with gst_rtsp_url_free () after usage.
  */
 GstRTSPUrl *
 gst_rtsp_url_copy (const GstRTSPUrl * url)
@@ -314,7 +318,7 @@ gst_rtsp_url_get_port (const GstRTSPUrl * url, guint16 * port)
  *
  * Get a newly allocated string describing the request URI for @url.
  *
- * Returns: a string with the request URI. g_free() after usage.
+ * Returns: (transfer full): a string with the request URI. g_free() after usage.
  */
 gchar *
 gst_rtsp_url_get_request_uri (const GstRTSPUrl * url)
@@ -324,6 +328,7 @@ gst_rtsp_url_get_request_uri (const GstRTSPUrl * url)
   const gchar *post_host;
   const gchar *pre_query;
   const gchar *query;
+  gchar scheme[SCHEME_SIZE] = "rtsp";
 
   g_return_val_if_fail (url != NULL, NULL);
 
@@ -331,12 +336,14 @@ gst_rtsp_url_get_request_uri (const GstRTSPUrl * url)
   post_host = url->family == GST_RTSP_FAM_INET6 ? "]" : "";
   pre_query = url->query ? "?" : "";
   query = url->query ? url->query : "";
+  if (url->transports & GST_RTSP_LOWER_TRANS_TLS)
+    g_strlcpy (scheme, "rtsps", SCHEME_SIZE);
 
   if (url->port != 0) {
-    uri = g_strdup_printf ("rtsp://%s%s%s:%u%s%s%s", pre_host, url->host,
+    uri = g_strdup_printf ("%s://%s%s%s:%u%s%s%s", scheme, pre_host, url->host,
         post_host, url->port, url->abspath, pre_query, query);
   } else {
-    uri = g_strdup_printf ("rtsp://%s%s%s%s%s%s", pre_host, url->host,
+    uri = g_strdup_printf ("%s://%s%s%s%s%s%s", scheme, pre_host, url->host,
         post_host, url->abspath, pre_query, query);
   }
   return uri;
@@ -350,7 +357,7 @@ gst_rtsp_url_get_request_uri (const GstRTSPUrl * url)
  * Get a newly allocated string describing the request URI for @url
  * combined with the control path for @control_path
  *
- * Returns: a string with the request URI combined with the control path.
+ * Returns: (transfer full): a string with the request URI combined with the control path.
  * g_free() after usage.
  *
  * Since: 1.18

@@ -955,7 +955,13 @@ static void
         g_thread_self());                                      \
   } G_STMT_END
 
+enum
+{
+  PROP_0,
+  PROP_FORCE_LIVE,
+};
 
+#define DEFAULT_FORCE_LIVE              FALSE
 
 /* Can't use the G_DEFINE_TYPE macros because we need the
  * videoaggregator class in the _init to be able to set
@@ -1296,9 +1302,7 @@ gst_video_aggregator_default_negotiated_src_caps (GstAggregator * agg,
     GstCaps * caps)
 {
   GstVideoAggregator *vagg = GST_VIDEO_AGGREGATOR (agg);
-  gboolean at_least_one_alpha = FALSE;
   gboolean ret = FALSE;
-  const GstVideoFormatInfo *finfo;
   GstVideoInfo info;
   GList *l;
 
@@ -1313,9 +1317,6 @@ gst_video_aggregator_default_negotiated_src_caps (GstAggregator * agg,
     if (GST_VIDEO_INFO_WIDTH (&mpad->info) == 0
         || GST_VIDEO_INFO_HEIGHT (&mpad->info) == 0)
       continue;
-
-    if (mpad->info.finfo->flags & GST_VIDEO_FORMAT_FLAG_ALPHA)
-      at_least_one_alpha = TRUE;
   }
   GST_OBJECT_UNLOCK (vagg);
 
@@ -1337,15 +1338,6 @@ gst_video_aggregator_default_negotiated_src_caps (GstAggregator * agg,
   GST_OBJECT_LOCK (vagg);
   vagg->info = info;
   GST_OBJECT_UNLOCK (vagg);
-
-  finfo = info.finfo;
-
-  if (at_least_one_alpha && !(finfo->flags & GST_VIDEO_FORMAT_FLAG_ALPHA)) {
-    GST_ELEMENT_ERROR (vagg, CORE, NEGOTIATION,
-        ("At least one of the input pads contains alpha, but configured caps don't support alpha."),
-        ("Either convert your inputs to not contain alpha or add a videoconvert after the aggregator"));
-    goto unlock_and_return;
-  }
 
   /* Then browse the sinks once more, setting or unsetting conversion if needed */
   gst_element_foreach_sink_pad (GST_ELEMENT_CAST (vagg),
@@ -1731,7 +1723,7 @@ gst_video_aggregator_fill_queues (GstVideoAggregator * vagg,
     GstClockTime output_end_running_time, gboolean timeout)
 {
   GList *l;
-  gboolean eos = TRUE;
+  gboolean eos = !gst_aggregator_get_force_live (GST_AGGREGATOR (vagg));
   gboolean repeat_pad_eos = FALSE;
   gboolean has_no_repeat_pads = FALSE;
   gboolean need_more_data = FALSE;
@@ -1892,7 +1884,16 @@ gst_video_aggregator_fill_queues (GstVideoAggregator * vagg,
         GST_DEBUG_OBJECT (pad,
             "Taking new buffer with start time %" GST_TIME_FORMAT,
             GST_TIME_ARGS (start_running_time));
-        gst_buffer_replace (&pad->priv->buffer, buf);
+
+        if ((gst_buffer_get_size (buf) == 0 &&
+                GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_GAP) &&
+                gst_buffer_get_custom_meta (buf,
+                    "GstAggregatorMissingDataMeta"))) {
+          GST_DEBUG_OBJECT (pad, "Consuming gap but keeping old buffer around");
+        } else {
+          gst_buffer_replace (&pad->priv->buffer, buf);
+        }
+
         if (pad->priv->pending_vinfo.finfo) {
           gst_caps_replace (&pad->priv->caps, pad->priv->pending_caps);
           gst_caps_replace (&pad->priv->pending_caps, NULL);
@@ -1912,7 +1913,15 @@ gst_video_aggregator_fill_queues (GstVideoAggregator * vagg,
         gst_buffer_unref (buf);
         eos = FALSE;
       } else {
-        gst_buffer_replace (&pad->priv->buffer, buf);
+        if ((gst_buffer_get_size (buf) == 0 &&
+                GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_GAP) &&
+                gst_buffer_get_custom_meta (buf,
+                    "GstAggregatorMissingDataMeta"))) {
+          GST_DEBUG_OBJECT (pad, "Consuming gap but keeping old buffer around");
+        } else {
+          gst_buffer_replace (&pad->priv->buffer, buf);
+        }
+
         if (pad->priv->pending_vinfo.finfo) {
           gst_caps_replace (&pad->priv->caps, pad->priv->pending_caps);
           gst_caps_replace (&pad->priv->pending_caps, NULL);
@@ -2999,6 +3008,10 @@ gst_video_aggregator_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec)
 {
   switch (prop_id) {
+    case PROP_FORCE_LIVE:
+      g_value_set_boolean (value,
+          gst_aggregator_get_force_live (GST_AGGREGATOR (object)));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -3010,6 +3023,10 @@ gst_video_aggregator_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec)
 {
   switch (prop_id) {
+    case PROP_FORCE_LIVE:
+      gst_aggregator_set_force_live (GST_AGGREGATOR (object),
+          g_value_get_boolean (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -3067,6 +3084,23 @@ gst_video_aggregator_class_init (GstVideoAggregatorClass * klass)
 
   /* Register the pad class */
   g_type_class_ref (GST_TYPE_VIDEO_AGGREGATOR_PAD);
+
+  /**
+   * GstVideoAggregator:force-live:
+   *
+   * Causes the element to aggregate on a timeout even when no live source is
+   * connected to its sinks. See #GstAggregator:min-upstream-latency for a
+   * companion property: in the vast majority of cases where you plan to plug in
+   * live sources with a non-zero latency, you should set it to a non-zero value.
+   *
+   * Since: 1.22
+   */
+  g_object_class_install_property (gobject_class, PROP_FORCE_LIVE,
+      g_param_spec_boolean ("force-live", "Force live",
+          "Always operate in live mode and aggregate on timeout regardless of "
+          "whether any live sources are linked upstream",
+          DEFAULT_FORCE_LIVE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT_ONLY));
 }
 
 static void

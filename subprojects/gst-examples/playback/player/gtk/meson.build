@@ -20,5 +20,5 @@ if gtk_dep.found()
        'gtk-video-renderer.h',
        'gtk-video-renderer.c'],
       c_args :  extra_c_args,
-      dependencies : [glib_dep, gobject_dep, gmodule_dep, gst_dep, gsttag_dep, gstplay_dep, gtk_dep, x11_dep])
+      dependencies : [gst_dep, gsttag_dep, gstplay_dep, gtk_dep, x11_dep])
 endif

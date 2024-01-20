@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gst-plugins-base-1.0.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-11 15:41+0000\n"
+"POT-Creation-Date: 2023-02-22 11:52+0000\n"
 "PO-Revision-Date: 2013-01-05 10:10+0100\n"
 "Last-Translator: Klemen Košir <klemen913@gmail.com>\n"
 "Language-Team: Slovenian <translation-team-sl@lists.sourceforge.net>\n"
@@ -151,6 +151,10 @@ msgstr "Te vrste pretoka še ni mogoče predvajati."
 #, c-format
 msgid "No URI handler implemented for \"%s\"."
 msgstr "Ni ročnika naslovov URI za \"%s\"."
+
+#, fuzzy
+msgid "Source element can't be prepared"
+msgstr "Izvorni predmet je neveljaven."
 
 msgid "Source element is invalid."
 msgstr "Izvorni predmet je neveljaven."
@@ -716,6 +720,9 @@ msgstr ""
 msgid "Start position in seconds."
 msgstr ""
 
+msgid "Enable accurate seeking"
+msgstr ""
+
 msgid "Playlist file containing input media files"
 msgstr ""
 
@@ -733,6 +740,9 @@ msgstr ""
 msgid ""
 "Keep showing the last frame on EOS until quit or playlist change command "
 "(gapless is ignored)"
+msgstr ""
+
+msgid "Do not print current position of pipeline"
 msgstr ""
 
 #, c-format

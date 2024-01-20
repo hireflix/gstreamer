@@ -204,15 +204,13 @@ gst_gl_window_cocoa_create_window (GstGLWindowCocoa *window_cocoa)
   NSRect rect = NSMakeRect (0, y, priv->preferred_width, priv->preferred_height);
   NSRect windowRect = NSMakeRect (0, y, priv->preferred_width, priv->preferred_height);
   GstGLContext *context = gst_gl_window_get_context (window);
-  GstGLContextCocoa *context_cocoa;
   GstGLCAOpenGLLayer *layer;
   GstGLNSView *glView;
 
   if (!context)
     return FALSE;
 
-  context_cocoa = GST_GL_CONTEXT_COCOA (context);
-  layer = [[GstGLCAOpenGLLayer alloc] initWithGstGLContext:context];
+  layer = [[GstGLCAOpenGLLayer alloc] initWithGstGLWindow:window];
   layer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
   layer.needsDisplayOnBoundsChange = YES;
   glView = [[GstGLNSView alloc] initWithFrameLayer:window_cocoa rect:windowRect layer:layer];
@@ -244,10 +242,6 @@ gst_gl_window_cocoa_create_window (GstGLWindowCocoa *window_cocoa)
 static gboolean
 gst_gl_window_cocoa_open (GstGLWindow *window, GError **err)
 {
-  GstGLWindowCocoa *window_cocoa;
-
-  window_cocoa = GST_GL_WINDOW_COCOA (window);
-
   return TRUE;
 }
 

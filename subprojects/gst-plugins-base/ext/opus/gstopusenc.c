@@ -195,7 +195,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 #define DEFAULT_FRAMESIZE       20
 #define DEFAULT_CBR             TRUE
 #define DEFAULT_CONSTRAINED_VBR TRUE
-#define DEFAULT_BITRATE_TYPE    BITRATE_TYPE_CBR
+#define DEFAULT_BITRATE_TYPE    BITRATE_TYPE_CONSTRAINED_VBR
 #define DEFAULT_COMPLEXITY      10
 #define DEFAULT_INBAND_FEC      FALSE
 #define DEFAULT_DTX             FALSE
@@ -508,8 +508,7 @@ gst_opus_enc_find_channel_position_in_vorbis_order (GstOpusEnc * enc,
     }
   }
   GST_WARNING_OBJECT (enc,
-      "Channel position %s is not representable in Vorbis order",
-      gst_opus_channel_names[position]);
+      "Channel position %d is not representable in Vorbis order", position);
   return -1;
 }
 
@@ -620,8 +619,8 @@ gst_opus_enc_setup_channel_mappings (GstOpusEnc * enc,
          needs to be done */
       if (!positions_done[position]) {
         int cv;
-        GST_DEBUG_OBJECT (enc, "Channel position %s is not mapped yet, adding",
-            gst_opus_channel_names[position]);
+        GST_DEBUG_OBJECT (enc, "Channel position %d is not mapped yet, adding",
+            position);
         cv = gst_opus_enc_find_channel_position_in_vorbis_order (enc, position);
         if (cv < 0)
           g_assert_not_reached ();

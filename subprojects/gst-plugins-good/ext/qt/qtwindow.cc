@@ -123,6 +123,8 @@ QtGLWindow::~QtGLWindow()
     gst_object_unref(this->priv->display);
   if (this->priv->context)
     gst_object_unref(this->priv->context);
+  if (this->priv->caps)
+      gst_caps_unref(this->priv->caps);
   g_free (this->priv);
   this->priv = NULL;
 }
@@ -148,7 +150,7 @@ QtGLWindow::beforeRendering()
     GST_DEBUG ("create new framebuffer object %dX%d", width, height);
 
     fbo.reset(new QOpenGLFramebufferObject (width, height,
-          QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGBA));
+          QOpenGLFramebufferObject::CombinedDepthStencil, GL_TEXTURE_2D, GL_RGBA));
 
     source->setRenderTarget(fbo.data());
   } else if (this->priv->useDefaultFbo) {

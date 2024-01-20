@@ -79,7 +79,9 @@ gst_ffmpeg_cfg_init (void)
 static gint
 cmp_enum_value (GEnumValue * val1, GEnumValue * val2)
 {
-  return val1->value - val2->value;
+  if (val1->value == val2->value)
+    return 0;
+  return (val1->value > val2->value) ? 1 : -1;
 }
 
 static GType
@@ -87,7 +89,7 @@ register_enum (const AVClass ** obj, const AVOption * top_opt)
 {
   const AVOption *opt = NULL;
   GType res = 0;
-  GArray *values = g_array_new (TRUE, TRUE, sizeof (GEnumValue));
+  GArray *values;
   gchar *lower_obj_name = g_ascii_strdown ((*obj)->class_name, -1);
   gchar *enum_name = g_strdup_printf ("%s-%s", lower_obj_name, top_opt->unit);
   gboolean none_default = TRUE;
@@ -105,6 +107,8 @@ register_enum (const AVClass ** obj, const AVOption * top_opt)
 
   if ((res = g_type_from_name (enum_name_strip)))
     goto done;
+
+  values = g_array_new (TRUE, TRUE, sizeof (GEnumValue));
 
   while ((opt = av_opt_next (obj, opt))) {
     if (opt->type == AV_OPT_TYPE_CONST && !g_strcmp0 (top_opt->unit, opt->unit)) {
@@ -147,6 +151,10 @@ register_enum (const AVClass ** obj, const AVOption * top_opt)
     while (i < values->len) {
       if (cur_val_set) {
         if (g_array_index (values, GEnumValue, i).value == cur_val) {
+          GEnumValue val = g_array_index (values, GEnumValue, i);
+          /* Don't leak the strings */
+          g_free ((gchar *) val.value_name);
+          g_free ((gchar *) val.value_nick);
           g_array_remove_index (values, i);
         } else {
           cur_val = g_array_index (values, GEnumValue, i).value;
@@ -163,6 +171,10 @@ register_enum (const AVClass ** obj, const AVOption * top_opt)
         &g_array_index (values, GEnumValue, 0));
 
     gst_type_mark_as_plugin_api (res, 0);
+
+    g_array_free (values, FALSE);
+  } else {
+    g_array_free (values, TRUE);
   }
 
 done:
@@ -172,9 +184,11 @@ done:
 }
 
 static gint
-cmp_flags_value (GEnumValue * val1, GEnumValue * val2)
+cmp_flags_value (GFlagsValue * val1, GFlagsValue * val2)
 {
-  return val1->value - val2->value;
+  if (val1->value == val2->value)
+    return 0;
+  return (val1->value > val2->value) ? 1 : -1;
 }
 
 static GType
@@ -182,7 +196,7 @@ register_flags (const AVClass ** obj, const AVOption * top_opt)
 {
   const AVOption *opt = NULL;
   GType res = 0;
-  GArray *values = g_array_new (TRUE, TRUE, sizeof (GEnumValue));
+  GArray *values;
   gchar *lower_obj_name = g_ascii_strdown ((*obj)->class_name, -1);
   gchar *flags_name = g_strdup_printf ("%s-%s", lower_obj_name, top_opt->unit);
   const gchar *flags_name_strip;
@@ -199,6 +213,8 @@ register_flags (const AVClass ** obj, const AVOption * top_opt)
 
   if ((res = g_type_from_name (flags_name_strip)))
     goto done;
+
+  values = g_array_new (TRUE, TRUE, sizeof (GFlagsValue));
 
   while ((opt = av_opt_next (obj, opt))) {
     if (opt->type == AV_OPT_TYPE_CONST && !g_strcmp0 (top_opt->unit, opt->unit)) {
@@ -232,7 +248,9 @@ register_flags (const AVClass ** obj, const AVOption * top_opt)
             GFlagsValue, 0));
 
     gst_type_mark_as_plugin_api (res, 0);
-  }
+    g_array_free (values, FALSE);
+  } else
+    g_array_free (values, TRUE);
 
 done:
   g_free (lower_obj_name);

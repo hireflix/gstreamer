@@ -26,7 +26,8 @@
 #include <gst/tag/tag.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
-#include <gdk/gdk.h>
+#include <gtk/gtk.h>
+
 #if defined (GDK_WINDOWING_X11)
 #include <gdk/gdkx.h>
 #elif defined (GDK_WINDOWING_WIN32)
@@ -38,8 +39,6 @@
 NSView *gdk_quartz_window_get_nsview (GdkWindow * window);
 #endif
 #endif
-
-#include <gtk/gtk.h>
 
 #include <gst/play/play.h>
 #include "gtk-video-renderer.h"
@@ -98,16 +97,27 @@ typedef GtkApplicationWindowClass GtkPlayClass;
 GType gtk_play_get_type (void);
 G_DEFINE_TYPE (GtkPlay, gtk_play, GTK_TYPE_APPLICATION_WINDOW);
 
+/* *INDENT-OFF* */
+G_MODULE_EXPORT
 void rewind_button_clicked_cb (GtkButton * button, GtkPlay * play);
+G_MODULE_EXPORT
 void forward_button_clicked_cb (GtkButton * button, GtkPlay * play);
+G_MODULE_EXPORT
 void play_pause_button_clicked_cb (GtkButton * button, GtkPlay * play);
+G_MODULE_EXPORT
 void prev_button_clicked_cb (GtkButton * button, GtkPlay * play);
+G_MODULE_EXPORT
 void next_button_clicked_cb (GtkButton * button, GtkPlay * play);
+G_MODULE_EXPORT
 void media_info_dialog_button_clicked_cb (GtkButton * button, GtkPlay * play);
+G_MODULE_EXPORT
 void fullscreen_button_toggled_cb (GtkToggleButton * widget, GtkPlay * play);
+G_MODULE_EXPORT
 void seekbar_value_changed_cb (GtkRange * range, GtkPlay * play);
+G_MODULE_EXPORT
 void volume_button_value_changed_cb (GtkScaleButton * button, gdouble value,
     GtkPlay * play);
+/* *INDENT-ON* */
 
 enum
 {

@@ -55,7 +55,7 @@
 #include "gst/riff/riff-media.h"
 #include <gst/base/gsttypefindhelper.h>
 #include <gst/pbutils/descriptions.h>
-#include <gst/gst-i18n-plugin.h>
+#include <glib/gi18n-lib.h>
 
 GST_DEBUG_CATEGORY_STATIC (wavparse_debug);
 #define GST_CAT_DEFAULT (wavparse_debug)
@@ -1559,6 +1559,7 @@ gst_wavparse_stream_headers (GstWavParse * wav)
               gst_wavparse_adtl_chunk (wav, (const guint8 *) map.data,
                   data_size);
               gst_buffer_unmap (buf, &map);
+              gst_buffer_unref (buf);
             }
             wav->offset += GST_ROUND_UP_2 (data_size);
             break;
@@ -1772,7 +1773,7 @@ invalid_blockalign:
 invalid_bps:
   {
     GST_ELEMENT_ERROR (wav, STREAM, FAILED, (NULL),
-        ("Stream claims av_bsp = %u, which is more than %u - invalid data",
+        ("Stream claims av_bps = %u, which is more than %u - invalid data",
             wav->av_bps, wav->blockalign * wav->rate));
     goto fail;
   }
@@ -1923,9 +1924,12 @@ gst_wavparse_add_src_pad (GstWavParse * wav, GstBuffer * buf)
   if (s && gst_structure_has_name (s, "audio/x-raw") && buf != NULL
       && (GST_BUFFER_OFFSET (buf) == 0 || !GST_BUFFER_OFFSET_IS_VALID (buf))) {
     GstTypeFindProbability prob;
-    GstCaps *tf_caps;
+    GstCaps *tf_caps, *dts_caps;
 
-    tf_caps = gst_type_find_helper_for_buffer (GST_OBJECT (wav), buf, &prob);
+    dts_caps = gst_caps_from_string ("audio/x-dts");
+    tf_caps =
+        gst_type_find_helper_for_buffer_with_caps (GST_OBJECT (wav), buf,
+        dts_caps, &prob);
     if (tf_caps != NULL) {
       GST_LOG ("typefind caps = %" GST_PTR_FORMAT ", P=%d", tf_caps, prob);
       if (gst_wavparse_have_dts_caps (tf_caps, prob)) {
@@ -1941,6 +1945,7 @@ gst_wavparse_add_src_pad (GstWavParse * wav, GstBuffer * buf)
         gst_caps_unref (tf_caps);
       }
     }
+    gst_caps_unref (dts_caps);
   }
 
   gst_pad_set_caps (wav->srcpad, wav->caps);

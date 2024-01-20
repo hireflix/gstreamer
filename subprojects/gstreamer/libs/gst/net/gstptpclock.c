@@ -63,6 +63,7 @@
 #ifdef G_OS_WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <processthreadsapi.h>  /* GetCurrentProcessId */
 #endif
 #include <sys/types.h>
 
@@ -344,6 +345,11 @@ static void emit_ptp_statistics (guint8 domain, const GstStructure * stats);
 static GHookList domain_stats_hooks;
 static gint domain_stats_n_hooks;
 static gboolean domain_stats_hooks_initted = FALSE;
+
+/* Only ever accessed from the PTP thread */
+/* PTPD in hybrid mode (default) sends multicast PTP messages with an invalid
+ * logMessageInterval. We work around this here and warn once */
+static gboolean ptpd_hybrid_workaround_warned_once = FALSE;
 
 /* Converts log2 seconds to GstClockTime */
 static GstClockTime
@@ -908,7 +914,17 @@ handle_announce_message (PtpMessage * msg, GstClockTime receive_time)
       return;
   }
 
-  sender->announce_interval = log2_to_clock_time (msg->log_message_interval);
+  if (msg->log_message_interval == 0x7f) {
+    sender->announce_interval = 2 * GST_SECOND;
+
+    if (!ptpd_hybrid_workaround_warned_once) {
+      GST_WARNING ("Working around ptpd bug: ptpd sends multicast PTP packets "
+          "with invalid logMessageInterval");
+      ptpd_hybrid_workaround_warned_once = TRUE;
+    }
+  } else {
+    sender->announce_interval = log2_to_clock_time (msg->log_message_interval);
+  }
 
   announce = g_new0 (PtpAnnounceMessage, 1);
   announce->receive_time = receive_time;
@@ -1510,7 +1526,17 @@ handle_sync_message (PtpMessage * msg, GstClockTime receive_time)
     return;
 #endif
 
-  domain->sync_interval = log2_to_clock_time (msg->log_message_interval);
+  if (msg->log_message_interval == 0x7f) {
+    domain->sync_interval = GST_SECOND;
+
+    if (!ptpd_hybrid_workaround_warned_once) {
+      GST_WARNING ("Working around ptpd bug: ptpd sends multicast PTP packets "
+          "with invalid logMessageInterval");
+      ptpd_hybrid_workaround_warned_once = TRUE;
+    }
+  } else {
+    domain->sync_interval = log2_to_clock_time (msg->log_message_interval);
+  }
 
   /* Check if duplicated */
   for (l = domain->pending_syncs.head; l; l = l->next) {
@@ -1707,8 +1733,18 @@ handle_delay_resp_message (PtpMessage * msg, GstClockTime receive_time)
       requesting_port_identity.port_number != ptp_clock_id.port_number)
     return;
 
-  domain->min_delay_req_interval =
-      log2_to_clock_time (msg->log_message_interval);
+  if (msg->log_message_interval == 0x7f) {
+    domain->min_delay_req_interval = GST_SECOND;
+
+    if (!ptpd_hybrid_workaround_warned_once) {
+      GST_WARNING ("Working around ptpd bug: ptpd sends multicast PTP packets "
+          "with invalid logMessageInterval");
+      ptpd_hybrid_workaround_warned_once = TRUE;
+    }
+  } else {
+    domain->min_delay_req_interval =
+        log2_to_clock_time (msg->log_message_interval);
+  }
 
   /* Check if we know about this one */
   for (l = domain->pending_syncs.head; l; l = l->next) {
@@ -1874,7 +1910,11 @@ have_stdin_data_cb (GIOChannel * channel, GIOCondition condition,
       }
       g_mutex_lock (&ptp_lock);
       ptp_clock_id.clock_identity = GST_READ_UINT64_BE (buffer);
+#ifdef G_OS_WIN32
+      ptp_clock_id.port_number = (guint16) GetCurrentProcessId ();
+#else
       ptp_clock_id.port_number = getpid ();
+#endif
       GST_DEBUG ("Got clock id 0x%016" G_GINT64_MODIFIER "x %u",
           ptp_clock_id.clock_identity, ptp_clock_id.port_number);
       g_cond_signal (&ptp_cond);

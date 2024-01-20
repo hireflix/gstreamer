@@ -3,13 +3,13 @@
 #
 # Артём Попов <artfwo@gmail.com>, 2009.
 # Pavel Maryanov <acid_jack@ukr.net>, 2009.
-# Yuri Kozlov <yuray@komyakino.ru>, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2019, 2021, 2022.
+# Yuri Kozlov <yuray@komyakino.ru>, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2019, 2021, 2022, 2023.
 msgid ""
 msgstr ""
-"Project-Id-Version: gst-plugins-base 1.20.0\n"
+"Project-Id-Version: gst-plugins-base 1.21.90\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-11 15:41+0000\n"
-"PO-Revision-Date: 2022-02-19 10:45+0300\n"
+"POT-Creation-Date: 2023-02-22 11:52+0000\n"
+"PO-Revision-Date: 2023-01-15 13:01+0300\n"
 "Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
 "Language-Team: Russian <gnu@d07.ru>\n"
 "Language: ru\n"
@@ -154,12 +154,15 @@ msgstr "Воспроизведение этого потока в данный �
 msgid "No URI handler implemented for \"%s\"."
 msgstr "Для «%s» не реализован обработчик URI."
 
+#, fuzzy
+msgid "Source element can't be prepared"
+msgstr "Элемент источника не имеет контактных гнёзд."
+
 msgid "Source element is invalid."
 msgstr "Неверный элемент источника."
 
-#, fuzzy
 msgid "Source element has no pads."
-msgstr "Неверный элемент источника."
+msgstr "Элемент источника не имеет контактных гнёзд."
 
 #, c-format
 msgid "Error while sending data to \"%s:%d\"."
@@ -664,17 +667,14 @@ msgstr "изменить направление воспроизведения"
 msgid "enable/disable trick modes"
 msgstr "включить/выключить режим рекомендаций"
 
-#, fuzzy
 msgid "change to previous/next audio track"
-msgstr "изменить звуковую дорожку"
+msgstr "перейти к предыдущей/следующей звуковой дорожке"
 
-#, fuzzy
 msgid "change to previous/next video track"
-msgstr "изменить видео дорожку"
+msgstr "перейти к предыдущей/следующей видео дорожке"
 
-#, fuzzy
 msgid "change to previous/next subtitle track"
-msgstr "изменить дорожку субтитров"
+msgstr "перейти к предыдущей/следующей дорожке субтитров"
 
 msgid "seek to beginning"
 msgstr "перемотать в начало"
@@ -706,7 +706,7 @@ msgid "Enable gapless playback"
 msgstr "Включить непрерывное воспроизведение"
 
 msgid "Enable instantaneous uri changes (only with playbin3)"
-msgstr ""
+msgstr "Включить немедленную смену uri (только с playbin3)"
 
 msgid "Shuffle playlist"
 msgstr "Перемешать список воспроизведения"
@@ -720,6 +720,9 @@ msgstr "Громкость"
 msgid "Start position in seconds."
 msgstr "Начальная позиция в секундах."
 
+msgid "Enable accurate seeking"
+msgstr ""
+
 msgid "Playlist file containing input media files"
 msgstr "Файл списка воспроизведения с входными медиа-файлами"
 
@@ -731,11 +734,12 @@ msgstr ""
 msgid "Do not print any output (apart from errors)"
 msgstr "Не выводить ничего в поток стандартного вывода (кроме ошибок)"
 
-#, fuzzy
 msgid ""
 "Use playbin3 pipeline (default varies depending on 'USE_PLAYBIN' env "
 "variable)"
-msgstr "(значение по умолчанию зависит от переменной окружения «USE_PLAYBIN»)"
+msgstr ""
+"Использовать конвейер playbin3 (значение по умолчанию зависит от переменной "
+"окружения «USE_PLAYBIN»)"
 
 msgid ""
 "Keep showing the last frame on EOS until quit or playlist change command "
@@ -743,6 +747,9 @@ msgid ""
 msgstr ""
 "Показывать последний кадр при EOS до завершения работы или команды смены "
 "списка воспроизведения (непрерывность воспроизведения игнорируется)"
+
+msgid "Do not print current position of pipeline"
+msgstr ""
 
 #, c-format
 msgid "Usage: %s FILE1|URI1 [FILE2|URI2] [FILE3|URI3] ..."

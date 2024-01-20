@@ -1,12 +1,20 @@
 include:
-  - remote: "https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/14731f78c23c7b523a85a26a068ade9ac1ecd2f3/templates/fedora.yml"
-  - remote: "https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/14731f78c23c7b523a85a26a068ade9ac1ecd2f3/templates/debian.yml"
+  - project: 'freedesktop/ci-templates'
+    ref: 14731f78c23c7b523a85a26a068ade9ac1ecd2f3
+    file: '/templates/fedora.yml'
+  - project: 'freedesktop/ci-templates'
+    ref: 14731f78c23c7b523a85a26a068ade9ac1ecd2f3
+    file: '/templates/debian.yml'
+  ###
+  # IMPORTANT
+  # These are the version tags for the docker images the CI runs against.
+  # If you are hacking on them or need a them to rebuild, you need to change
+  # the appropriate version string in this file which will cause a rebuild.
+  ###
+  - local: '.gitlab-image-tags.yml'
 
 stages:
-  - 'trigger'
-  - 'build docker'
   - 'preparation'
-  - 'pre-build'
   - 'build'
   - 'test'
   # Use the resulting binaries
@@ -16,29 +24,16 @@ variables:
   GIT_DEPTH: 1
 
   # Branch to track for modules that have no ref specified in the manifest
-  GST_UPSTREAM_BRANCH: '1.20'
-  ORC_UPSTREAM_BRANCH: 'master'
+  GST_UPSTREAM_BRANCH: '1.22'
 
-  ###
-  # IMPORTANT
-  # These are the version tags for the docker images the CI runs against.
-  # If you are hacking on them or need a them to rebuild, its enough
-  # to change any part of the string of the image you want.
-  ###
-  FEDORA_TAG:  '2022-07-31.0'
-  INDENT_TAG: '2022-03-07.1'
-  WINDOWS_TAG: "2022-07-31.0"
-
-  GST_UPSTREAM_REPO: 'gstreamer/gstreamer'
   FDO_UPSTREAM_REPO: 'gstreamer/gstreamer'
 
-  FEDORA_AMD64_SUFFIX:  'amd64/fedora'
+  FEDORA_AMD64_SUFFIX: 'amd64/fedora'
   INDENT_AMD64_SUFFIX: 'amd64/gst-indent'
   WINDOWS_AMD64_SUFFIX: 'amd64/windows'
 
-  FEDORA_DOCS_IMAGE: "registry.freedesktop.org/gstreamer/gst-ci/amd64/fedora:2020-07-03.0-master"
   WINDOWS_IMAGE: "$CI_REGISTRY_IMAGE/$WINDOWS_AMD64_SUFFIX:$WINDOWS_TAG-$GST_UPSTREAM_BRANCH"
-  WINDOWS_UPSTREAM_IMAGE: "$CI_REGISTRY/$GST_UPSTREAM_REPO/$WINDOWS_AMD64_SUFFIX:$WINDOWS_TAG-$GST_UPSTREAM_BRANCH"
+  WINDOWS_UPSTREAM_IMAGE: "$CI_REGISTRY/$FDO_UPSTREAM_REPO/$WINDOWS_AMD64_SUFFIX:$WINDOWS_TAG-$GST_UPSTREAM_BRANCH"
 
   MESON_BUILDTYPE_ARGS: --default-library=both
   DEFAULT_MESON_ARGS: >
@@ -105,7 +100,7 @@ default:
 # This is an empty job that is used to trigger the pipeline.
 trigger:
   image: alpine:latest
-  stage: 'trigger'
+  stage: 'preparation'
   variables:
     GIT_STRATEGY: none
   script:
@@ -113,8 +108,9 @@ trigger:
   rules:
     # If the MR is assigned to the Merge bot, trigger the pipeline automatically
     - if: '$CI_MERGE_REQUEST_ASSIGNEES == "gstreamer-merge-bot"'
-    # Require explicit action to trigger tests post merge
-    - if: '$CI_PROJECT_NAMESPACE == "gstreamer" && $CI_COMMIT_BRANCH == $GST_UPSTREAM_BRANCH'
+    # Require explicit action to trigger tests post merge, but we want to
+    # automatically trigger the integratation stage
+    - if: '$CI_PROJECT_NAMESPACE == "gstreamer" && $CI_COMMIT_BRANCH == $GST_UPSTREAM_BRANCH && $CI_JOB_STAGE != "integrate"'
       when: 'manual'
     # When the assignee isn't the merge bot, require an explicit action to trigger the pipeline
     # to avoid wasting CI resources
@@ -133,9 +129,8 @@ fedora amd64 docker:
   extends:
     - '.fedora image'
     - '.fdo.container-build@fedora'
-  stage: 'build docker'
-  needs:
-    - "trigger"
+  stage: 'preparation'
+  needs: []
   tags:
     - 'packet.net'
 
@@ -145,19 +140,19 @@ fedora amd64 docker:
     FDO_REPO_SUFFIX: "$INDENT_AMD64_SUFFIX"
     FDO_DISTRIBUTION_TAG: "$INDENT_TAG-$GST_UPSTREAM_BRANCH"
     FDO_DISTRIBUTION_PACKAGES: 'curl indent git findutils'
+    FDO_DISTRIBUTION_EXEC: 'ci/docker/indent/prepare.sh'
 
 gst-indent amd64 docker:
   extends:
     - '.gst-indent image'
     - '.fdo.container-build@debian'
-  stage: 'build docker'
+  stage: 'preparation'
   # Do not depend on the trigger, as we want to run indent always
   needs: []
 
 windows amd64 docker:
-  stage: "build docker"
-  needs:
-    - "trigger"
+  stage: "preparation"
+  timeout: '3h'
   variables:
     # Unlike the buildah/linux jobs, this file
     # needs to be relative to docker/windows/ subdir
@@ -195,17 +190,8 @@ gst indent:
     - job: 'gst-indent amd64 docker'
       artifacts: false
   script:
-    # man indent. grep RETURN VALUE, grab a beer on my behalf...
-    - indent --version || true
-    - ./scripts/gst-indent-all
-    - |
-      if git diff --quiet -- ':!subprojects/gst-integration-testsuites/medias' .; then
-          echo "Code is properly formatted"
-      else
-          git diff --color=always -- ':!subprojects/gst-integration-testsuites/medias' .
-          echo 'style diverges, please run gst-indent first'
-          exit 1
-      fi
+    - ./scripts/check-format-c
+    - ./scripts/format-csharp --check
   rules:
     # Don't check indentation on post merge pipelines
     - if: '$CI_PROJECT_NAMESPACE == "gstreamer" && $CI_COMMIT_BRANCH == $GST_UPSTREAM_BRANCH'
@@ -217,10 +203,15 @@ gst indent:
 # build setup templates
 #
 .build_template: &build
+  - date -R
   - ci/scripts/handle-subprojects-cache.py subprojects/
+  - date -R
   - echo $MESON_ARGS
+  - date -R
   - meson build/ $MESON_ARGS
+  - date -R
   - ninja -C build/
+  - date -R
   - ccache --show-stats
 
 .build_ccache_vars:
@@ -235,6 +226,7 @@ gst indent:
 
 .base_modules_changes: &modules_changes
   - .gitlab-ci.yml
+  - gst-env.py
   - ci/gitlab/*.py
   - meson.build
   - subprojects/*.wrap
@@ -275,7 +267,9 @@ gst indent:
   variables:
     MESON_ARGS: "${DEFAULT_MESON_ARGS} ${MESON_BUILDTYPE_ARGS} ${MESON_GST_WERROR}"
   script:
-    *build
+    - *build
+    - ./gst-env.py gst-inspect-1.0 --version
+    - ./gst-env.py gst-inspect-1.0
   after_script:
     - mv build/meson-logs/ meson-logs
   artifacts:
@@ -297,9 +291,25 @@ gst indent:
     - '.fdo.suffixed-image@fedora'
     - '.build'
   needs:
+    - "trigger"
     - "fedora amd64 docker"
   variables:
     MESON_ARGS: *simple_build
+
+build fedora x86_64:
+  extends:
+    - '.fedora image'
+    - '.fdo.suffixed-image@fedora'
+    - '.build fedora x86_64'
+  needs:
+    - "trigger"
+    - "fedora amd64 docker"
+  script:
+    - *build
+    - ./gst-env.py gst-inspect-1.0 --version
+    - ./gst-env.py gst-inspect-1.0
+    - meson install --destdir $CI_PROJECT_DIR/destdir -C build
+    - rm -rf $CI_PROJECT_DIR/destdir
 
 build nodebug fedora x86_64:
   extends:
@@ -307,6 +317,7 @@ build nodebug fedora x86_64:
     - '.fdo.suffixed-image@fedora'
     - '.build'
   needs:
+    - "trigger"
     - "fedora amd64 docker"
   variables:
     MESON_ARGS: "${DEFAULT_MESON_ARGS} -Dsharp=enabled -Dgstreamer:gst_debug=false -Domx=enabled -Dgst-omx:target=generic ${MESON_BUILDTYPE_ARGS} ${MESON_GST_WERROR}"
@@ -325,6 +336,7 @@ build clang fedora x86_64:
     - 'windows'
     - '2022'
   needs:
+    - "trigger"
     - "windows amd64 docker"
   timeout: '45min'
   variables:
@@ -335,6 +347,8 @@ build clang fedora x86_64:
       -Dvaapi=disabled
       -Dgst-plugins-base:pango=enabled
       -Dgst-plugins-good:cairo=enabled
+      -Dgst-plugins-good:soup=enabled
+      -Dgst-plugins-good:soup-lookup-dep=true
     # Needs to not be empty otherwise the newline -> space replace command in
     # `script:` will fail
     MESON_CROSS_ARGS: ' '
@@ -345,7 +359,19 @@ build clang fedora x86_64:
       when: manual
     - changes:
         *modules_changes
+    - changes:
+        - subprojects/win-*/*
+  before_script:
+    # Install more recent version. We need at least 0.63 for diff_files support in wraps
+    - pip3 install -U meson==1.1.1
   script:
+    # Make sure powershell exits on errors
+    # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables?view=powershell-6
+    - $ErrorActionPreference = "Stop"
+
+    # Set the code page to UTF-8
+    - chcp 65001
+
     - ci/scripts/handle-subprojects-cache.py subprojects/
     # For some reason, options are separated by newline instead of space, so we
     # have to replace them first.
@@ -353,7 +379,7 @@ build clang fedora x86_64:
     - $env:MESON_CROSS_ARGS = $env:MESON_CROSS_ARGS.replace("`n"," ")
     - cmd.exe /C "C:\BuildTools\Common7\Tools\VsDevCmd.bat -host_arch=amd64 -arch=$env:ARCH &&
         meson build $env:MESON_ARGS $env:MESON_CROSS_ARGS &&
-        ninja -C build"
+        meson compile -C build"
   artifacts:
    expire_in: "7 days"
    when: "always"
@@ -364,6 +390,14 @@ build vs2019 amd64:
   extends: '.build windows'
   variables:
     ARCH: 'amd64'
+  script:
+    - !reference [".build windows", "script",]
+    - cmd.exe /C "C:\BuildTools\Common7\Tools\VsDevCmd.bat -host_arch=amd64 -arch=$env:ARCH &&
+        .\gst-env.py gst-inspect-1.0.exe --version &&
+        .\gst-env.py gst-inspect-1.0.exe &&
+        mkdir .\destdir &&
+        meson install --destdir=$env:CI_PROJECT_DIR\destdir -C build &&
+        rmdir /s /q  $env:CI_PROJECT_DIR\destdir"
 
 build vs2019 x86:
   extends: '.build windows'
@@ -376,9 +410,12 @@ build vs2019 arm64 uwp:
     ARCH: 'arm64'
     # pango pulls in cairo which pulls in pixman which doesn't build because of
     # https://github.com/mesonbuild/meson/issues/9889
+    # libsoup requires glib-compile-resources, which isn't available in a cross
+    # build
     MESON_CROSS_ARGS: >
       -Dgst-plugins-base:pango=disabled
       -Dgst-plugins-good:cairo=disabled
+      -Dgst-plugins-good:soup-lookup-dep=false
       -Dgst-devtools:cairo=disabled
       --cross-file ci/meson/vs2019-arm64-cross-file.txt
       --native-file ci/meson/vs2019-x64-native-file.txt
@@ -395,6 +432,9 @@ build msys2 :
     # Make sure powershell exits on errors
     # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables?view=powershell-6
     - $ErrorActionPreference = "Stop"
+
+    # Set the code page to UTF-8
+    - chcp 65001
 
     # Configure MSYS2 to use the UCRT64 environment, start in the same directory
     # and inherit PATH
@@ -466,6 +506,7 @@ build msys2 :
     - '.fdo.suffixed-image@fedora'
     - '.test'
   needs:
+    - "trigger"
     - "fedora amd64 docker"
   tags: ['gstreamer']
 
@@ -476,8 +517,23 @@ check fedora:
 
 integration testsuites fedora:
   extends: '.test fedora x86_64'
-  parallel: 4
+  parallel: 8
   variables:
+    MESON_BUILDTYPE_ARGS: >
+      -Domx=disabled
+      -Dsharp=disabled
+      -Dvaapi=disabled
+      -Dexamples=disabled
+      -Dgst-examples=disabled
+      -Dtests=disabled
+      -Dnls=disabled
+      -Dqt5=disabled
+      -Dgstreamer:benchmarks=disabled
+      -Dgst-plugins-good:gtk3=disabled
+      -Dgst-plugins-bad:microdns=disabled
+      -Dgst-plugins-bad:avtp=disabled
+      -Dgst-plugins-bad:opencv=disabled
+      -Dgst-plugins-bad:webrtc=disabled
     EXTRA_VALIDATE_ARGS: "--timeout-factor=2 --retry-on-failures --parts=${CI_NODE_TOTAL} --part-index=${CI_NODE_INDEX} --sync"
     TEST_SUITE: "validate ges"
 
@@ -625,27 +681,37 @@ valgrind ges:
       - subprojects/gst-plugins-good/**/*
       - subprojects/gst-plugins-bad/**/*
       - subprojects/gst-editing-services/**/*
+      - subprojects/gst-python/**/*
+  # valgrind ges jobs are racy across the board and simply fail too often.
+  # Someone needs to go through job logs and figure out which jobs to mark
+  # as flaky. Until then, just ignore failures.
+  allow_failure: true
 
 # ---- Integration ----- #
 
 .documentation:
-  image: $FEDORA_DOCS_IMAGE
-  extends:
-    - '.build_ccache_vars'
+  extends: '.build fedora x86_64'
   variables:
     MESON_ARGS: *simple_build
-    MESON_BUILDTYPE_ARGS: "-Ddoc=enabled"
+    MESON_BUILDTYPE_ARGS: "-Ddoc=enabled -Drs=enabled -Dgst-docs:fatal_warnings=true"
+    # Disable werror for the docs build, we don't need it
+    MESON_GST_WERROR: ''
     CI_ARTIFACTS_URL: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/raw/"
   script:
-  # FIXME: should rebuild the image with newer versions!
-  - pip3 install --upgrade hotdoc==0.13.7
-  - pip3 install --upgrade meson==0.60.*
-  - *build
+  - export PATH=/usr/local/cargo/bin/:/usr/local/bin/:$PATH
+  - export RUSTUP_HOME='/usr/local/rustup'
+
+  - ci/scripts/handle-subprojects-cache.py subprojects/
+  - echo $MESON_ARGS
+  - meson build/ $MESON_ARGS
+  - ccache --show-stats
+
   - ./gst-env.py ninja -C build/ plugins_doc_caches
   # Ignore modifications to wrap files made by meson
   - git checkout subprojects/*.wrap
   - ./ci/scripts/check-documentation-diff.py
-  - ./gst-env.py hotdoc run --conf-file=build/subprojects/gst-docs/GStreamer-doc.json --fatal-warnings
+
+  - ./gst-env.py ninja -C build subprojects/gst-docs/GStreamer-doc
   - mv build/subprojects/gst-docs/GStreamer-doc/html documentation/
 
   artifacts:
@@ -663,7 +729,8 @@ documentation:
   stage: integrate
   extends:
     - '.documentation'
-  needs: []
+  needs:
+    - "fedora amd64 docker"
   rules:
     - if: '$CI_PROJECT_NAMESPACE == "gstreamer" && $CI_COMMIT_BRANCH == "main"'
 
@@ -677,6 +744,7 @@ build documentation:
   stage: build
   needs:
     - "trigger"
+    - "fedora amd64 docker"
   rules:
     # Never run post merge, we have the `documentation` always running for that
     - if: '$CI_PROJECT_NAMESPACE == "gstreamer" && $CI_COMMIT_BRANCH == $GST_UPSTREAM_BRANCH'
@@ -702,13 +770,14 @@ build documentation:
 # https://gitlab.com/gitlab-org/gitlab/-/issues/341737
 cerbero trigger:
   stage: build
-  timeout: '3h'
+  timeout: '4h'
   tags:
     - placeholder-job
   extends:
     - '.fedora image'
     - '.fdo.suffixed-image@fedora'
   needs:
+    - "trigger"
     - "fedora amd64 docker"
   script:
     - ci/gitlab/trigger_cerbero_pipeline.py

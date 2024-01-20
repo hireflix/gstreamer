@@ -1580,6 +1580,16 @@ gst_base_parse_sink_query_default (GstBaseParse * parse, GstQuery * query)
   pad = GST_BASE_PARSE_SINK_PAD (parse);
 
   switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_BITRATE:
+    {
+      if (parse->priv->avg_bitrate) {
+        gst_query_set_bitrate (query, parse->priv->avg_bitrate);
+        res = TRUE;
+      } else {
+        res = gst_pad_query_default (pad, GST_OBJECT_CAST (parse), query);
+      }
+      break;
+    }
     case GST_QUERY_CAPS:
     {
       GstBaseParseClass *bclass;
@@ -2279,6 +2289,10 @@ gst_base_parse_handle_buffer (GstBaseParse * parse, GstBuffer * buffer,
       outbuf = gst_buffer_make_writable (outbuf);
       GST_BUFFER_PTS (outbuf) = pts;
       GST_BUFFER_DTS (outbuf) = dts;
+      GST_BUFFER_OFFSET (outbuf) = GST_BUFFER_OFFSET_NONE;
+      GST_BUFFER_DURATION (outbuf) = GST_CLOCK_TIME_NONE;
+      GST_BUFFER_OFFSET_END (outbuf) = GST_BUFFER_OFFSET_NONE;
+      GST_BUFFER_FLAGS (outbuf) = 0;
       parse->priv->buffers_head =
           g_slist_prepend (parse->priv->buffers_head, outbuf);
       outbuf = NULL;
@@ -2718,6 +2732,7 @@ gst_base_parse_finish_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
     GstBuffer *src, *dest;
 
     frame->out_buffer = gst_adapter_take_buffer (parse->priv->adapter, size);
+    frame->out_buffer = gst_buffer_make_writable (frame->out_buffer);
     dest = frame->out_buffer;
     src = frame->buffer;
     GST_BUFFER_PTS (dest) = GST_BUFFER_PTS (src);
@@ -2725,7 +2740,7 @@ gst_base_parse_finish_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
     GST_BUFFER_OFFSET (dest) = GST_BUFFER_OFFSET (src);
     GST_BUFFER_DURATION (dest) = GST_BUFFER_DURATION (src);
     GST_BUFFER_OFFSET_END (dest) = GST_BUFFER_OFFSET_END (src);
-    GST_MINI_OBJECT_FLAGS (dest) = GST_MINI_OBJECT_FLAGS (src);
+    GST_BUFFER_FLAGS (dest) = GST_BUFFER_FLAGS (src);
   } else {
     gst_adapter_flush (parse->priv->adapter, size);
   }

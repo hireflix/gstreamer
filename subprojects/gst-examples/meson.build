@@ -1,4 +1,4 @@
-project('gst-examples', 'c', version : '1.20.6', license : 'LGPL')
+project('gst-examples', 'c', version : '1.22.8', license : 'LGPL')
 
 cc = meson.get_compiler('c')
 m_dep = cc.find_library('m', required : false)
@@ -19,14 +19,7 @@ gst_version_minor = version_arr[1].to_int()
 
 gst_req = '>= @0@.@1@.0'.format(gst_version_major, gst_version_minor)
 
-glib_dep = dependency('glib-2.0', version: '>= 2.38',
-    fallback: ['glib', 'libglib_dep'])
-gio_dep = dependency('gio-2.0',
-    fallback: ['glib', 'libgio_dep'])
-gobject_dep = dependency('gobject-2.0', version: '>= 2.38',
-    fallback: ['glib', 'libgobject_dep'])
-gmodule_dep = dependency('gmodule-2.0',
-    fallback: ['glib', 'libgmodule_dep'])
+gio_dep = dependency('gio-2.0')
 
 gst_dep = dependency('gstreamer-1.0', version: gst_req,
     fallback : ['gstreamer', 'gst_dep'])

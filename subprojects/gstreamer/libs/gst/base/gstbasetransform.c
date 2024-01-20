@@ -141,7 +141,7 @@
 #include <string.h>
 
 #include "../../../gst/gst_private.h"
-#include "../../../gst/gst-i18n-lib.h"
+#include <glib/gi18n-lib.h>
 #include "../../../gst/glib-compat-private.h"
 #include "gstbasetransform.h"
 
@@ -2036,6 +2036,7 @@ default_submit_input_buffer (GstBaseTransform * trans, gboolean is_discont,
   GstFlowReturn ret = GST_FLOW_OK;
   GstClockTime running_time;
   GstClockTime timestamp;
+  gboolean qos_enabled;
 
   if (G_UNLIKELY (!gst_base_transform_reconfigure_unlocked (trans)))
     goto not_negotiated;
@@ -2058,6 +2059,14 @@ default_submit_input_buffer (GstBaseTransform * trans, gboolean is_discont,
   if (!priv->negotiated && !priv->passthrough && (bclass->set_caps != NULL))
     goto not_negotiated;
 
+  GST_OBJECT_LOCK (trans);
+  qos_enabled = priv->qos_enabled;
+  GST_OBJECT_UNLOCK (trans);
+
+  /* Skip all qos handling if disabled */
+  if (!qos_enabled)
+    goto no_qos;
+
   /* can only do QoS if the segment is in TIME */
   if (trans->segment.format != GST_FORMAT_TIME)
     goto no_qos;
@@ -2079,8 +2088,7 @@ default_submit_input_buffer (GstBaseTransform * trans, gboolean is_discont,
     proportion = priv->proportion;
     /* check for QoS, don't perform conversion for buffers
      * that are known to be late. */
-    need_skip = priv->qos_enabled &&
-        earliest_time != -1 && running_time <= earliest_time;
+    need_skip = earliest_time != -1 && running_time <= earliest_time;
     GST_OBJECT_UNLOCK (trans);
 
     if (need_skip) {

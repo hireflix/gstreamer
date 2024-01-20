@@ -595,20 +595,21 @@ gst_glimage_sink_set_rotate_method (GstGLImageSink * gl_sink,
 }
 
 static void
-gst_glimage_sink_navigation_send_event (GstNavigation * navigation, GstStructure
-    * structure)
+gst_glimage_sink_navigation_send_event (GstNavigation * navigation,
+    GstEvent * event)
 {
   GstGLImageSink *sink = GST_GLIMAGE_SINK (navigation);
   gboolean handled = FALSE;
-  GstEvent *event = NULL;
   GstGLWindow *window;
   guint width, height;
   gdouble x, y;
 
   if (!sink->context) {
-    gst_structure_free (structure);
+    gst_event_unref (event);
     return;
   }
+
+  event = gst_event_make_writable (event);
 
   window = gst_gl_context_get_window (sink->context);
   g_return_if_fail (GST_IS_GL_WINDOW (window));
@@ -618,47 +619,45 @@ gst_glimage_sink_navigation_send_event (GstNavigation * navigation, GstStructure
   gst_gl_window_get_surface_dimensions (window, &width, &height);
 
   /* Converting pointer coordinates to the non scaled geometry */
-  if (width != 0 && gst_structure_get_double (structure, "pointer_x", &x)
-      && height != 0 && gst_structure_get_double (structure, "pointer_y", &y)) {
+  if (width != 0 && height != 0 &&
+      gst_navigation_event_get_coordinates (event, &x, &y)) {
     gdouble stream_x, stream_y;
 
     _display_size_to_stream_size (sink, x, y, &stream_x, &stream_y);
 
-    gst_structure_set (structure, "pointer_x", G_TYPE_DOUBLE,
-        stream_x, "pointer_y", G_TYPE_DOUBLE, stream_y, NULL);
+    gst_navigation_event_set_coordinates (event, stream_x, stream_y);
   }
 
   /* Converting pointer scroll coordinates to the non scaled geometry */
-  if (width != 0 && gst_structure_get_double (structure, "delta_pointer_x", &x)
-      && height != 0
-      && gst_structure_get_double (structure, "delta_pointer_y", &y)) {
-    gdouble stream_x, stream_y;
+  if (width != 0 && height != 0 && gst_navigation_event_get_type (event)
+      == GST_NAVIGATION_EVENT_MOUSE_SCROLL) {
+    gdouble dx, dy, stream_dx, stream_dy;
 
-    _display_scroll_value_to_stream_scroll_value (sink, x, y, &stream_x,
-        &stream_y);
+    gst_navigation_event_parse_mouse_scroll_event (event, &x, &y, &dx, &dy);
+    _display_scroll_value_to_stream_scroll_value (sink, dx, dy, &stream_dx,
+        &stream_dy);
 
-    gst_structure_set (structure, "delta_pointer_x", G_TYPE_DOUBLE,
-        stream_x, "delta_pointer_y", G_TYPE_DOUBLE, stream_y, NULL);
+    /* FIXME: Add support for NavigationModifier */
+    gst_event_replace (&event,
+        gst_navigation_event_new_mouse_scroll (x, y, stream_dx, stream_dy,
+            GST_NAVIGATION_MODIFIER_NONE));
   }
 
-  event = gst_event_new_navigation (structure);
-  if (event) {
-    gst_event_ref (event);
-    handled = gst_pad_push_event (GST_VIDEO_SINK_PAD (sink), event);
+  gst_event_ref (event);
+  handled = gst_pad_push_event (GST_VIDEO_SINK_PAD (sink), event);
 
-    if (!handled)
-      gst_element_post_message ((GstElement *) sink,
-          gst_navigation_message_new_event ((GstObject *) sink, event));
+  if (!handled)
+    gst_element_post_message ((GstElement *) sink,
+        gst_navigation_message_new_event ((GstObject *) sink, event));
 
-    gst_event_unref (event);
-  }
+  gst_event_unref (event);
   gst_object_unref (window);
 }
 
 static void
 gst_glimage_sink_navigation_interface_init (GstNavigationInterface * iface)
 {
-  iface->send_event = gst_glimage_sink_navigation_send_event;
+  iface->send_event_simple = gst_glimage_sink_navigation_send_event;
 }
 
 #define gst_glimage_sink_parent_class parent_class
@@ -946,18 +945,48 @@ static void
 gst_glimage_sink_key_event_cb (GstGLWindow * window, char *event_name, char
     *key_string, GstGLImageSink * gl_sink)
 {
+  GstEvent *event = NULL;
+
   GST_DEBUG_OBJECT (gl_sink, "event %s key %s pressed", event_name, key_string);
-  gst_navigation_send_key_event (GST_NAVIGATION (gl_sink),
-      event_name, key_string);
+  // FIXME: Add support for modifiers
+  if (0 == g_strcmp0 ("key-press", event_name)) {
+    event =
+        gst_navigation_event_new_key_press (key_string,
+        GST_NAVIGATION_MODIFIER_NONE);
+  } else if (0 == g_strcmp0 ("key-release", event_name)) {
+    event =
+        gst_navigation_event_new_key_release (key_string,
+        GST_NAVIGATION_MODIFIER_NONE);
+  }
+
+  if (event)
+    gst_navigation_send_event_simple (GST_NAVIGATION (gl_sink), event);
 }
 
 static void
 gst_glimage_sink_mouse_event_cb (GstGLWindow * window, char *event_name,
     int button, double posx, double posy, GstGLImageSink * gl_sink)
 {
+  GstEvent *event = NULL;
+
   GST_DEBUG_OBJECT (gl_sink, "event %s at %g, %g", event_name, posx, posy);
-  gst_navigation_send_mouse_event (GST_NAVIGATION (gl_sink),
-      event_name, button, posx, posy);
+  // FIXME: Add support for modifiers
+  if (0 == g_strcmp0 ("mouse-button-press", event_name)) {
+    event =
+        gst_navigation_event_new_mouse_button_press (button, posx, posy,
+        GST_NAVIGATION_MODIFIER_NONE);
+  } else if (0 == g_strcmp0 ("mouse-button-release", event_name)) {
+    event =
+        gst_navigation_event_new_mouse_button_release (button, posx, posy,
+        GST_NAVIGATION_MODIFIER_NONE);
+  } else if (0 == g_strcmp0 ("mouse-move", event_name)) {
+    event =
+        gst_navigation_event_new_mouse_move (posx, posy,
+        GST_NAVIGATION_MODIFIER_NONE);
+  }
+
+  if (event)
+    gst_navigation_send_event_simple (GST_NAVIGATION (gl_sink), event);
 }
 
 
@@ -967,8 +996,9 @@ gst_glimage_sink_mouse_scroll_event_cb (GstGLWindow * window,
     GstGLImageSink * gl_sink)
 {
   GST_DEBUG_OBJECT (gl_sink, "event scroll at %g, %g", posx, posy);
-  gst_navigation_send_mouse_scroll_event (GST_NAVIGATION (gl_sink),
-      posx, posy, delta_x, delta_y);
+  gst_navigation_send_event_simple (GST_NAVIGATION (gl_sink),
+      gst_navigation_event_new_mouse_scroll (posx, posy, delta_x, delta_y,
+          GST_NAVIGATION_MODIFIER_NONE));
 }
 
 static void
@@ -2267,6 +2297,10 @@ gst_glimage_sink_on_resize (GstGLImageSink * gl_sink, gint width, gint height)
         src.w = GST_VIDEO_SINK_WIDTH (gl_sink);
         src.h = GST_VIDEO_SINK_HEIGHT (gl_sink);
       }
+
+      /* The stream may not be negotiated yet */
+      src.w = MAX (1, src.w);
+      src.h = MAX (1, src.h);
 
       dst.x = 0;
       dst.y = 0;

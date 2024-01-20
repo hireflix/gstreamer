@@ -226,6 +226,7 @@ gst_ffmpegvidenc_finalize (GObject * object)
   gst_ffmpeg_avcodec_close (ffmpegenc->refcontext);
   av_freep (&ffmpegenc->context);
   av_freep (&ffmpegenc->refcontext);
+  g_free (ffmpegenc->filename);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -684,6 +685,7 @@ gst_ffmpegvidenc_receive_packet (GstFFMpegVidEnc * ffmpegenc,
     g_slice_free (AVPacket, pkt);
     goto done;
   } else if (res == AVERROR_EOF) {
+    g_slice_free (AVPacket, pkt);
     ret = GST_FLOW_EOS;
     goto done;
   } else if (res < 0) {

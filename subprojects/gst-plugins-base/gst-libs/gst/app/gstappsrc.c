@@ -1329,7 +1329,7 @@ gst_app_src_do_negotiate (GstBaseSrc * basesrc)
 {
   GstAppSrc *appsrc = GST_APP_SRC_CAST (basesrc);
   GstAppSrcPrivate *priv = appsrc->priv;
-  gboolean result;
+  gboolean result = TRUE;
   GstCaps *caps;
 
   GST_OBJECT_LOCK (basesrc);
@@ -1342,8 +1342,6 @@ gst_app_src_do_negotiate (GstBaseSrc * basesrc)
   if (caps) {
     result = gst_base_src_set_caps (basesrc, caps);
     gst_caps_unref (caps);
-  } else {
-    result = GST_BASE_SRC_CLASS (parent_class)->negotiate (basesrc);
   }
   g_mutex_lock (&priv->mutex);
 
@@ -1876,7 +1874,7 @@ gst_app_src_set_caps (GstAppSrc * appsrc, const GstCaps * caps)
  *
  * Get the configured caps on @appsrc.
  *
- * Returns: the #GstCaps produced by the source. gst_caps_unref() after usage.
+ * Returns: (nullable) (transfer full): the #GstCaps produced by the source. gst_caps_unref() after usage.
  */
 GstCaps *
 gst_app_src_get_caps (GstAppSrc * appsrc)
@@ -2734,7 +2732,7 @@ dropped:
         gst_buffer_unref (buffer);
     }
     g_mutex_unlock (&priv->mutex);
-    return GST_FLOW_EOS;
+    return GST_FLOW_OK;
   }
 }
 

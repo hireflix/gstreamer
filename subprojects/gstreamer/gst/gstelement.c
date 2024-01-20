@@ -101,12 +101,10 @@
 #include "gstquark.h"
 #include "gsttracerutils.h"
 #include "gstvalue.h"
-#include "gst-i18n-lib.h"
+#include <glib/gi18n-lib.h>
 #include "glib-compat-private.h"
 
-#ifndef GST_DISABLE_GST_DEBUG
 #include "printf/printf.h"
-#endif
 
 /* Element signals and args */
 enum
@@ -419,7 +417,7 @@ gst_element_set_clock_func (GstElement * element, GstClock * clock)
 /**
  * gst_element_set_clock:
  * @element: a #GstElement to set the clock for.
- * @clock: (transfer none) (allow-none): the #GstClock to set for the element.
+ * @clock: (transfer none) (nullable): the #GstClock to set for the element.
  *
  * Sets the clock for the element. This function increases the
  * refcount on the clock. Any previously set clock on the object
@@ -1167,6 +1165,16 @@ _gst_element_request_pad (GstElement * element, GstPadTemplate * templ,
   }
 #endif
 
+#ifdef GST_ENABLE_EXTRA_CHECKS
+  {
+    if (!g_list_find (oclass->padtemplates, templ)) {
+      /* FIXME 2.0: Change this to g_return_val_if_fail() */
+      g_critical ("Element type %s does not have a pad template %s (%p)",
+          g_type_name (G_OBJECT_TYPE (element)), templ->name_template, templ);
+    }
+  }
+#endif
+
   if (oclass->request_new_pad)
     newpad = (oclass->request_new_pad) (element, templ, name, caps);
 
@@ -1753,9 +1761,9 @@ gst_element_get_metadata (GstElement * element, const gchar * key)
  *
  * Retrieves a list of the pad templates associated with @element_class. The
  * list must not be modified by the calling code.
- * > If you use this function in the #GInstanceInitFunc of an object class
+ * > If you use this function in the GInstanceInitFunc of an object class
  * > that has subclasses, make sure to pass the g_class parameter of the
- * > #GInstanceInitFunc here.
+ * > GInstanceInitFunc here.
  *
  * Returns: (transfer none) (element-type Gst.PadTemplate): the #GList of
  *     pad templates.
@@ -1795,9 +1803,9 @@ gst_element_get_pad_template_list (GstElement * element)
  * @name: the name of the #GstPadTemplate to get.
  *
  * Retrieves a padtemplate from @element_class with the given name.
- * > If you use this function in the #GInstanceInitFunc of an object class
+ * > If you use this function in the GInstanceInitFunc of an object class
  * > that has subclasses, make sure to pass the g_class parameter of the
- * > #GInstanceInitFunc here.
+ * > GInstanceInitFunc here.
  *
  * Returns: (transfer none) (nullable): the #GstPadTemplate with the
  *     given name, or %NULL if none was found. No unreferencing is

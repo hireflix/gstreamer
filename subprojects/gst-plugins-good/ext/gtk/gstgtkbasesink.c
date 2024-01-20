@@ -320,15 +320,15 @@ gst_gtk_base_sink_set_property (GObject * object, guint prop_id,
 
 static void
 gst_gtk_base_sink_navigation_send_event (GstNavigation * navigation,
-    GstStructure * structure)
+    GstEvent * event)
 {
   GstGtkBaseSink *sink = GST_GTK_BASE_SINK (navigation);
-  GstEvent *event;
   GstPad *pad;
   gdouble x, y;
 
-  if (gst_structure_get_double (structure, "pointer_x", &x) &&
-      gst_structure_get_double (structure, "pointer_y", &y)) {
+  event = gst_event_make_writable (event);
+
+  if (gst_navigation_event_get_coordinates (event, &x, &y)) {
     GtkGstBaseWidget *widget = gst_gtk_base_sink_get_widget (sink);
     gdouble stream_x, stream_y;
 
@@ -339,16 +339,14 @@ gst_gtk_base_sink_navigation_send_event (GstNavigation * navigation,
 
     gtk_gst_base_widget_display_size_to_stream_size (widget,
         x, y, &stream_x, &stream_y);
-    gst_structure_set (structure,
-        "pointer_x", G_TYPE_DOUBLE, (gdouble) stream_x,
-        "pointer_y", G_TYPE_DOUBLE, (gdouble) stream_y, NULL);
+    gst_navigation_event_set_coordinates (event, stream_x, stream_y);
     g_object_unref (widget);
   }
 
-  event = gst_event_new_navigation (structure);
   pad = gst_pad_get_peer (GST_VIDEO_SINK_PAD (sink));
 
-  GST_TRACE_OBJECT (sink, "navigation event %" GST_PTR_FORMAT, structure);
+  GST_TRACE_OBJECT (sink, "navigation event %" GST_PTR_FORMAT,
+      gst_event_get_structure (event));
 
   if (GST_IS_PAD (pad) && GST_IS_EVENT (event)) {
     if (!gst_pad_send_event (pad, gst_event_ref (event))) {
@@ -365,7 +363,7 @@ gst_gtk_base_sink_navigation_send_event (GstNavigation * navigation,
 static void
 gst_gtk_base_sink_navigation_interface_init (GstNavigationInterface * iface)
 {
-  iface->send_event = gst_gtk_base_sink_navigation_send_event;
+  iface->send_event_simple = gst_gtk_base_sink_navigation_send_event;
 }
 
 static gboolean

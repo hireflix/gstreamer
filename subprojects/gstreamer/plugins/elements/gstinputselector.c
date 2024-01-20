@@ -101,13 +101,15 @@ enum
   PROP_ACTIVE_PAD,
   PROP_SYNC_STREAMS,
   PROP_SYNC_MODE,
-  PROP_CACHE_BUFFERS
+  PROP_CACHE_BUFFERS,
+  PROP_DROP_BACKWARDS
 };
 
 #define DEFAULT_SYNC_STREAMS TRUE
 #define DEFAULT_SYNC_MODE GST_INPUT_SELECTOR_SYNC_MODE_ACTIVE_SEGMENT
 #define DEFAULT_CACHE_BUFFERS FALSE
 #define DEFAULT_PAD_ALWAYS_OK TRUE
+#define DEFAULT_DROP_BACKWARDS FALSE
 
 enum
 {
@@ -165,6 +167,8 @@ struct _GstSelectorPad
 
   gboolean sending_cached_buffers;
   GQueue *cached_buffers;
+
+  GstClockID clock_id;
 };
 
 struct _GstSelectorPadCachedBuffer
@@ -345,6 +349,11 @@ gst_selector_pad_reset (GstSelectorPad * pad)
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
   pad->sending_cached_buffers = FALSE;
   gst_selector_pad_free_cached_buffers (pad);
+  if (pad->clock_id) {
+    gst_clock_id_unschedule (pad->clock_id);
+    gst_clock_id_unref (pad->clock_id);
+  }
+  pad->clock_id = NULL;
   GST_OBJECT_UNLOCK (pad);
 }
 
@@ -474,6 +483,10 @@ gst_input_selector_eos_wait (GstInputSelector * self, GstSelectorPad * pad,
 
       gst_pad_push_event (self->srcpad, gst_event_ref (eos_event));
       GST_INPUT_SELECTOR_LOCK (self);
+      if (pad->clock_id) {
+        GST_DEBUG_OBJECT (pad, "unlock clock wait");
+        gst_clock_id_unschedule (pad->clock_id);
+      }
       /* Wake up other pads so they can continue when syncing to
        * running time, as this pad just switched to EOS and
        * may enable others to progress */
@@ -561,10 +574,15 @@ gst_selector_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
       selpad->flushing = TRUE;
       sel->eos = FALSE;
       selpad->group_done = FALSE;
+      if (selpad->clock_id) {
+        GST_DEBUG_OBJECT (selpad, "unlock clock wait");
+        gst_clock_id_unschedule (selpad->clock_id);
+      }
       GST_INPUT_SELECTOR_BROADCAST (sel);
       break;
     case GST_EVENT_FLUSH_STOP:
       gst_selector_pad_reset (selpad);
+      sel->last_output_ts = GST_CLOCK_TIME_NONE;
       break;
     case GST_EVENT_SEGMENT:
     {
@@ -753,7 +771,6 @@ gst_input_selector_wait_running_time (GstInputSelector * sel,
   while (TRUE) {
     GstPad *active_sinkpad;
     GstSelectorPad *active_selpad;
-    GstClock *clock;
     gint64 cur_running_time;
     GstClockTime running_time;
 
@@ -777,21 +794,7 @@ gst_input_selector_wait_running_time (GstInputSelector * sel,
     }
 
     cur_running_time = GST_CLOCK_TIME_NONE;
-    if (sel->sync_mode == GST_INPUT_SELECTOR_SYNC_MODE_CLOCK) {
-      clock = gst_element_get_clock (GST_ELEMENT_CAST (sel));
-      if (clock) {
-        GstClockTime base_time;
-
-        cur_running_time = gst_clock_get_time (clock);
-        base_time = gst_element_get_base_time (GST_ELEMENT_CAST (sel));
-        if (base_time <= cur_running_time)
-          cur_running_time -= base_time;
-        else
-          cur_running_time = 0;
-
-        gst_object_unref (clock);
-      }
-    } else {
+    if (sel->sync_mode != GST_INPUT_SELECTOR_SYNC_MODE_CLOCK) {
       GstSegment *active_seg;
 
       active_seg = &active_selpad->segment;
@@ -821,9 +824,68 @@ gst_input_selector_wait_running_time (GstInputSelector * sel,
       break;
     }
 
-    if (selpad != active_selpad && !sel->eos && !sel->flushing
-        && !selpad->flushing && (cur_running_time == GST_CLOCK_TIME_NONE
-            || running_time >= cur_running_time)) {
+    if (selpad == active_selpad || sel->eos || sel->flushing
+        || selpad->flushing) {
+      GST_DEBUG_OBJECT (selpad, "Waiting aborted. Unblocking");
+      GST_INPUT_SELECTOR_UNLOCK (sel);
+      break;
+    }
+
+    if (sel->sync_mode == GST_INPUT_SELECTOR_SYNC_MODE_CLOCK
+        && GST_CLOCK_TIME_IS_VALID (running_time)) {
+      GstClock *clock;
+      GstClockReturn cret;
+      GstClockTime base_time;
+      GstClockTimeDiff jitter;
+      GstClockID clock_id;
+
+      base_time = gst_element_get_base_time (GST_ELEMENT_CAST (sel));
+      if (!GST_CLOCK_TIME_IS_VALID (base_time)) {
+        GST_DEBUG_OBJECT (selpad, "sync-mode=clock but no base time. Blocking");
+        GST_INPUT_SELECTOR_WAIT (sel);
+        continue;
+      }
+
+      clock = gst_element_get_clock (GST_ELEMENT_CAST (sel));
+      if (!clock) {
+        GST_DEBUG_OBJECT (selpad, "sync-mode=clock but no clock. Blocking");
+        GST_INPUT_SELECTOR_WAIT (sel);
+        continue;
+      }
+
+      if (!sel->playing) {
+        GST_DEBUG_OBJECT (selpad, "Waiting for playing");
+        GST_INPUT_SELECTOR_WAIT (sel);
+        GST_DEBUG_OBJECT (selpad, "Done waiting");
+        continue;
+      }
+
+      /* FIXME: If no upstream latency was queried yet, do one now */
+      clock_id =
+          gst_clock_new_single_shot_id (clock,
+          running_time + base_time + sel->upstream_latency);
+      selpad->clock_id = gst_clock_id_ref (clock_id);
+      GST_INPUT_SELECTOR_UNLOCK (sel);
+
+      gst_object_unref (clock);
+      cret = gst_clock_id_wait (clock_id, &jitter);
+      gst_clock_id_unref (clock_id);
+
+      GST_DEBUG_OBJECT (sel, "Clock returned %d, jitter %" GST_STIME_FORMAT,
+          cret, GST_STIME_ARGS (jitter));
+
+      GST_INPUT_SELECTOR_LOCK (sel);
+      if (selpad->clock_id) {
+        gst_clock_id_unref (selpad->clock_id);
+        selpad->clock_id = NULL;
+      }
+      if (cret == GST_CLOCK_OK ||
+          cret == GST_CLOCK_EARLY || cret == GST_CLOCK_DONE) {
+        GST_INPUT_SELECTOR_UNLOCK (sel);
+        break;
+      }
+    } else if (!GST_CLOCK_TIME_IS_VALID (cur_running_time)
+        || running_time >= cur_running_time) {
       GST_DEBUG_OBJECT (selpad,
           "Waiting for active streams to advance. %" GST_TIME_FORMAT " >= %"
           GST_TIME_FORMAT, GST_TIME_ARGS (running_time),
@@ -997,6 +1059,8 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstPad *active_sinkpad;
   GstPad *prev_active_sinkpad = NULL;
   GstSelectorPad *selpad;
+  GstSegment seg;
+  GstClockTime running_time = GST_CLOCK_TIME_NONE;
 
   sel = GST_INPUT_SELECTOR (parent);
   selpad = GST_SELECTOR_PAD_CAST (pad);
@@ -1121,7 +1185,25 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     prev_active_sinkpad = NULL;
   }
 
+  seg = selpad->segment;
+  if (seg.format == GST_FORMAT_TIME)
+    running_time =
+        gst_segment_to_running_time (&seg, GST_FORMAT_TIME,
+        GST_BUFFER_DTS_OR_PTS (buf));
+
   if (selpad->discont) {
+    GST_INPUT_SELECTOR_LOCK (sel);
+    if (sel->sync_streams && sel->drop_backwards
+        && GST_CLOCK_TIME_IS_VALID (running_time)) {
+      /* Just switched. Make sure timestamps don't go backwards */
+      if (running_time < sel->last_output_ts
+          && GST_CLOCK_TIME_IS_VALID (sel->last_output_ts)) {
+        GST_DEBUG_OBJECT (pad, "Discarding buffer %p with backwards timestamp",
+            buf);
+        goto ignore;
+      }
+    }
+    GST_INPUT_SELECTOR_UNLOCK (sel);
     buf = gst_buffer_make_writable (buf);
 
     GST_DEBUG_OBJECT (pad, "Marking discont buffer %p", buf);
@@ -1132,6 +1214,7 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   /* forward */
   GST_LOG_OBJECT (pad, "Forwarding buffer %p with timestamp %" GST_TIME_FORMAT,
       buf, GST_TIME_ARGS (GST_BUFFER_PTS (buf)));
+  sel->last_output_ts = running_time;
 
   /* Only make the buffer read-only when necessary */
   if (sel->sync_streams && sel->cache_buffers)
@@ -1300,6 +1383,22 @@ gst_input_selector_class_init (GstInputSelectorClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  /**
+   * GstInputSelector:drop-backwards
+   *
+   * If set to %TRUE and GstInputSelector:sync-streams is also set to %TRUE,
+   * every time the input is switched, buffers that would go backwards related
+   * to the last output buffer pre-switch will be dropped.
+   *
+   * Since: 1.22
+   */
+  g_object_class_install_property (gobject_class, PROP_DROP_BACKWARDS,
+      g_param_spec_boolean ("drop-backwards", "Drop Backwards Buffers",
+          "Drop backwards buffers on pad switch",
+          DEFAULT_DROP_BACKWARDS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
   gst_element_class_set_static_metadata (gstelement_class, "Input selector",
       "Generic", "N-to-1 input stream selector",
       "Julien Moutte <julien@moutte.net>, "
@@ -1340,6 +1439,10 @@ gst_input_selector_init (GstInputSelector * sel)
   g_mutex_init (&sel->lock);
   g_cond_init (&sel->cond);
   sel->eos = FALSE;
+  sel->playing = FALSE;
+
+  sel->upstream_latency = 0;
+  sel->last_output_ts = GST_CLOCK_TIME_NONE;
 
   /* lets give a change for downstream to do something on
    * active-pad change before we start pushing new buffers */
@@ -1468,6 +1571,11 @@ gst_input_selector_set_property (GObject * object, guint prop_id,
       sel->cache_buffers = g_value_get_boolean (value);
       GST_INPUT_SELECTOR_UNLOCK (object);
       break;
+    case PROP_DROP_BACKWARDS:
+      GST_INPUT_SELECTOR_LOCK (object);
+      sel->drop_backwards = g_value_get_boolean (value);
+      GST_INPUT_SELECTOR_UNLOCK (object);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1514,6 +1622,11 @@ gst_input_selector_get_property (GObject * object, guint prop_id,
     case PROP_CACHE_BUFFERS:
       GST_INPUT_SELECTOR_LOCK (object);
       g_value_set_boolean (value, sel->cache_buffers);
+      GST_INPUT_SELECTOR_UNLOCK (object);
+      break;
+    case PROP_DROP_BACKWARDS:
+      GST_INPUT_SELECTOR_LOCK (object);
+      g_value_set_boolean (value, sel->drop_backwards);
       GST_INPUT_SELECTOR_UNLOCK (object);
       break;
     default:
@@ -1722,7 +1835,16 @@ retry:
       GST_ERROR_OBJECT (pad, "minimum latency bigger than maximum latency");
     }
 
-    gst_query_set_latency (query, fold_data.live, fold_data.min, fold_data.max);
+    GST_INPUT_SELECTOR_LOCK (sel);
+    if (fold_data.live)
+      sel->upstream_latency = fold_data.min;
+    else
+      sel->upstream_latency = 0;
+
+    gst_query_set_latency (query, fold_data.live
+        || (sel->sync_mode == GST_INPUT_SELECTOR_SYNC_MODE_CLOCK),
+        fold_data.min, fold_data.max);
+    GST_INPUT_SELECTOR_UNLOCK (sel);
   } else {
     GST_LOG_OBJECT (pad, "latency query failed");
   }
@@ -1887,6 +2009,8 @@ gst_input_selector_reset (GstInputSelector * sel)
   GST_OBJECT_UNLOCK (sel);
 
   sel->have_group_id = TRUE;
+  sel->upstream_latency = 0;
+  sel->last_output_ts = GST_CLOCK_TIME_NONE;
   GST_INPUT_SELECTOR_UNLOCK (sel);
 }
 
@@ -1913,6 +2037,32 @@ gst_input_selector_change_state (GstElement * element,
       GST_INPUT_SELECTOR_BROADCAST (self);
       GST_INPUT_SELECTOR_UNLOCK (self);
       break;
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:{
+      GST_INPUT_SELECTOR_LOCK (self);
+      self->playing = TRUE;
+      GST_INPUT_SELECTOR_BROADCAST (self);
+      GST_INPUT_SELECTOR_UNLOCK (self);
+      break;
+    }
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:{
+      GList *walk;
+
+      GST_INPUT_SELECTOR_LOCK (self);
+      self->playing = FALSE;
+      GST_INPUT_SELECTOR_BROADCAST (self);
+      GST_OBJECT_LOCK (self);
+      for (walk = GST_ELEMENT_CAST (self)->sinkpads; walk;
+          walk = g_list_next (walk)) {
+        GstSelectorPad *selpad = GST_SELECTOR_PAD_CAST (walk->data);
+        if (selpad->clock_id) {
+          GST_DEBUG_OBJECT (selpad, "unlock clock wait");
+          gst_clock_id_unschedule (selpad->clock_id);
+        }
+      }
+      GST_OBJECT_UNLOCK (self);
+      GST_INPUT_SELECTOR_UNLOCK (self);
+      break;
+    }
     default:
       break;
   }

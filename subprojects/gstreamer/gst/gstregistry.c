@@ -112,7 +112,7 @@
 
 #include "gstpluginloader.h"
 
-#include "gst-i18n-lib.h"
+#include <glib/gi18n-lib.h>
 
 #include "gst.h"
 #include "glib-compat-private.h"
@@ -703,8 +703,9 @@ gst_plugin_feature_type_name_filter (GstPluginFeature * feature,
 {
   g_assert (GST_IS_PLUGIN_FEATURE (feature));
 
-  return ((data->type == 0 || data->type == G_OBJECT_TYPE (feature)) &&
-      (data->name == NULL || !strcmp (data->name, GST_OBJECT_NAME (feature))));
+  return ((data->type == G_TYPE_INVALID
+          || data->type == G_OBJECT_TYPE (feature)) && (data->name == NULL
+          || !strcmp (data->name, GST_OBJECT_NAME (feature))));
 }
 
 /* returns TRUE if the list was changed
@@ -1222,6 +1223,10 @@ skip_directory (const gchar * parent_path, const gchar * dirent)
   if (g_str_has_prefix (dirent, "hotdoc-private-"))
     return TRUE;
 
+  /* gst-integration-testsuites can end up with many log files */
+  if (strcmp (dirent, "gst-integration-testsuites") == 0)
+    return TRUE;
+
   /* Rust build dirs which may contain artefacts we should skip, can be
    * /target/{debug,release} or /target/{arch}/{debug,release} */
   target = strstr (parent_path, "/target/");
@@ -1597,7 +1602,7 @@ priv_gst_get_relocated_libgstreamer (void)
 
     g_free (base_dir);
   }
-#elif defined(__APPLE__) && defined(HAVE_DLADDR)
+#elif defined(HAVE_DLADDR)
   {
     Dl_info info;
 
@@ -1617,6 +1622,11 @@ priv_gst_get_relocated_libgstreamer (void)
       return NULL;
     }
   }
+#else
+#warning "Unsupported platform for retrieving the current location of a shared library."
+#warning "Relocatable builds will not work."
+  GST_WARNING ("Don't know how to retrieve the location of the shared "
+      "library libgstreamer-" GST_API_VERSION);
 #endif
 
   return dir;

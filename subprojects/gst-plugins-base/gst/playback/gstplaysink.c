@@ -25,7 +25,7 @@
 #include <string.h>
 #include <gst/gst.h>
 
-#include <gst/gst-i18n-plugin.h>
+#include <glib/gi18n-lib.h>
 #include <gst/pbutils/pbutils.h>
 #include <gst/video/video.h>
 #include <gst/audio/streamvolume.h>
@@ -1471,11 +1471,18 @@ static GstElement *
 try_element (GstPlaySink * playsink, GstElement * element, gboolean unref)
 {
   GstStateChangeReturn ret;
+  GstBus *element_bus;
 
   if (element) {
+    element_bus = gst_element_get_bus (element);
+    g_assert (!element_bus);
+    gst_element_set_bus (element, GST_BIN_CAST (playsink)->child_bus);
+
     ret = gst_element_set_state (element, GST_STATE_READY);
+
     if (ret == GST_STATE_CHANGE_FAILURE) {
       GST_DEBUG_OBJECT (playsink, "failed state change..");
+      gst_element_set_bus (element, NULL);
       gst_element_set_state (element, GST_STATE_NULL);
       if (unref)
         gst_object_unref (element);
@@ -4991,9 +4998,8 @@ gst_play_sink_change_state (GstElement * element, GstStateChange transition)
       /* fall through */
     case GST_STATE_CHANGE_READY_TO_NULL:
       GST_PLAY_SINK_LOCK (playsink);
-      if (playsink->audiochain && playsink->audiochain->sink_volume) {
-        /* remove our links to the volume elements when they were
-         * provided by a sink */
+      if (playsink->audiochain) {
+        /* remove our links to the volume elements */
         disconnect_audio_chain (playsink->audiochain, playsink);
         if (playsink->audiochain->volume)
           gst_object_unref (playsink->audiochain->volume);
@@ -5440,7 +5446,7 @@ gst_play_sink_overlay_init (gpointer g_iface, gpointer g_iface_data)
 
 static void
 gst_play_sink_navigation_send_event (GstNavigation * navigation,
-    GstStructure * structure)
+    GstEvent * event)
 {
   GstPlaySink *playsink = GST_PLAY_SINK (navigation);
   GstBin *bin = NULL;
@@ -5454,20 +5460,14 @@ gst_play_sink_navigation_send_event (GstNavigation * navigation,
     GstElement *nav = gst_bin_get_by_interface (bin, GST_TYPE_NAVIGATION);
 
     if (nav) {
-      gst_navigation_send_event (GST_NAVIGATION (nav), structure);
-      structure = NULL;
+      gst_navigation_send_event_simple (GST_NAVIGATION (nav), event);
       gst_object_unref (nav);
     } else {
-      GstEvent *event = gst_event_new_navigation (structure);
-      structure = NULL;
       gst_element_send_event (GST_ELEMENT (bin), event);
     }
 
     gst_object_unref (bin);
   }
-
-  if (structure)
-    gst_structure_free (structure);
 }
 
 static void
@@ -5475,7 +5475,7 @@ gst_play_sink_navigation_init (gpointer g_iface, gpointer g_iface_data)
 {
   GstNavigationInterface *iface = (GstNavigationInterface *) g_iface;
 
-  iface->send_event = gst_play_sink_navigation_send_event;
+  iface->send_event_simple = gst_play_sink_navigation_send_event;
 }
 
 static const GList *
@@ -5597,4 +5597,19 @@ gst_play_sink_colorbalance_init (gpointer g_iface, gpointer g_iface_data)
   iface->set_value = gst_play_sink_colorbalance_set_value;
   iface->get_value = gst_play_sink_colorbalance_get_value;
   iface->get_balance_type = gst_play_sink_colorbalance_get_balance_type;
+}
+
+GstPlaySinkType
+gst_play_sink_type_from_stream_type (GstStreamType stream_type)
+{
+  switch (stream_type) {
+    case GST_STREAM_TYPE_AUDIO:
+      return GST_PLAY_SINK_TYPE_AUDIO;
+    case GST_STREAM_TYPE_VIDEO:
+      return GST_PLAY_SINK_TYPE_VIDEO;
+    case GST_STREAM_TYPE_TEXT:
+      return GST_PLAY_SINK_TYPE_TEXT;
+    default:
+      return GST_PLAY_SINK_TYPE_LAST;
+  }
 }

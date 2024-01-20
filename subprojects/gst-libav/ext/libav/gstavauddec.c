@@ -30,6 +30,7 @@
 #include <libavutil/channel_layout.h>
 
 #include <gst/gst.h>
+#include <gst/base/gstbytewriter.h>
 
 #include "gstav.h"
 #include "gstavcodecmap.h"
@@ -474,7 +475,8 @@ gst_avpacket_init (AVPacket * packet, guint8 * data, guint size)
  */
 static gboolean
 gst_ffmpegauddec_audio_frame (GstFFMpegAudDec * ffmpegdec,
-    AVCodec * in_plugin, GstBuffer ** outbuf, GstFlowReturn * ret)
+    AVCodec * in_plugin, GstBuffer ** outbuf, GstFlowReturn * ret,
+    gboolean * need_more_data)
 {
   gboolean got_frame = FALSE;
   gint res;
@@ -543,19 +545,21 @@ gst_ffmpegauddec_audio_frame (GstFFMpegAudDec * ffmpegdec,
     if (ffmpegdec->frame->flags & AV_FRAME_FLAG_CORRUPT)
       GST_BUFFER_FLAG_SET (*outbuf, GST_BUFFER_FLAG_CORRUPTED);
   } else if (res == AVERROR (EAGAIN)) {
+    GST_DEBUG_OBJECT (ffmpegdec, "Need more data");
     *outbuf = NULL;
+    *need_more_data = TRUE;
   } else if (res == AVERROR_EOF) {
     *ret = GST_FLOW_EOS;
     GST_DEBUG_OBJECT (ffmpegdec, "Context was entirely flushed");
   } else if (res < 0) {
-    *ret = GST_FLOW_OK;
-    GST_WARNING_OBJECT (ffmpegdec, "Legitimate decoding error");
+    GST_AUDIO_DECODER_ERROR (ffmpegdec, 1, STREAM, DECODE, (NULL),
+        ("Audio decoding error"), *ret);
   }
 
 beach:
   av_frame_unref (ffmpegdec->frame);
-  GST_DEBUG_OBJECT (ffmpegdec, "return flow %d, out %p, got_frame %d",
-      *ret, *outbuf, got_frame);
+  GST_DEBUG_OBJECT (ffmpegdec, "return flow %s, out %p, got_frame %d",
+      gst_flow_get_name (*ret), *outbuf, got_frame);
   return got_frame;
 }
 
@@ -563,7 +567,8 @@ beach:
  * Returns: whether a frame was decoded
  */
 static gboolean
-gst_ffmpegauddec_frame (GstFFMpegAudDec * ffmpegdec, GstFlowReturn * ret)
+gst_ffmpegauddec_frame (GstFFMpegAudDec * ffmpegdec, GstFlowReturn * ret,
+    gboolean * need_more_data)
 {
   GstFFMpegAudDecClass *oclass;
   GstBuffer *outbuf = NULL;
@@ -578,7 +583,8 @@ gst_ffmpegauddec_frame (GstFFMpegAudDec * ffmpegdec, GstFlowReturn * ret)
   oclass = (GstFFMpegAudDecClass *) (G_OBJECT_GET_CLASS (ffmpegdec));
 
   got_frame =
-      gst_ffmpegauddec_audio_frame (ffmpegdec, oclass->in_plugin, &outbuf, ret);
+      gst_ffmpegauddec_audio_frame (ffmpegdec, oclass->in_plugin, &outbuf, ret,
+      need_more_data);
 
   if (outbuf) {
     GST_LOG_OBJECT (ffmpegdec, "Decoded data, buffer %" GST_PTR_FORMAT, outbuf);
@@ -605,6 +611,7 @@ gst_ffmpegauddec_drain (GstFFMpegAudDec * ffmpegdec, gboolean force)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   gboolean got_any_frames = FALSE;
+  gboolean need_more_data = FALSE;
   gboolean got_frame;
 
   if (avcodec_send_packet (ffmpegdec->context, NULL))
@@ -613,10 +620,10 @@ gst_ffmpegauddec_drain (GstFFMpegAudDec * ffmpegdec, gboolean force)
   /* FIXME: https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/1474 */
   if (!(ffmpegdec->context->flags2 & AV_CODEC_FLAG2_SKIP_MANUAL)) {
     do {
-      got_frame = gst_ffmpegauddec_frame (ffmpegdec, &ret);
+      got_frame = gst_ffmpegauddec_frame (ffmpegdec, &ret, &need_more_data);
       if (got_frame)
         got_any_frames = TRUE;
-    } while (got_frame);
+    } while (got_frame && !need_more_data);
   }
   avcodec_flush_buffers (ffmpegdec->context);
 
@@ -667,6 +674,10 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
   GstFlowReturn ret = GST_FLOW_OK;
   gboolean is_header;
   AVPacket packet;
+  GstAudioClippingMeta *clipping_meta = NULL;
+  guint32 num_clipped_samples = 0;
+  gboolean fully_clipped = FALSE;
+  gboolean need_more_data = FALSE;
 
   ffmpegdec = (GstFFMpegAudDec *) decoder;
 
@@ -698,6 +709,18 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
     inbuf = gst_buffer_make_writable (inbuf);
   }
 
+  /* mpegaudioparse is setting buffer flags for the Xing/LAME header. This
+   * should not be passed to the decoder as it results in unnecessary silence
+   * samples to be output */
+  if (oclass->in_plugin->id == AV_CODEC_ID_MP3 &&
+      GST_BUFFER_FLAG_IS_SET (inbuf, GST_BUFFER_FLAG_DECODE_ONLY) &&
+      GST_BUFFER_FLAG_IS_SET (inbuf, GST_BUFFER_FLAG_DROPPABLE)) {
+    gst_buffer_unref (inbuf);
+    return gst_audio_decoder_finish_frame (decoder, NULL, 1);
+  }
+
+  clipping_meta = gst_buffer_get_audio_clipping_meta (inbuf);
+
   gst_buffer_map (inbuf, &map, GST_MAP_READ);
 
   data = map.data;
@@ -725,13 +748,39 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
   if (!packet.size)
     goto unmap;
 
+  if (clipping_meta != NULL) {
+    if (clipping_meta->format == GST_FORMAT_DEFAULT) {
+      uint8_t *p = av_packet_new_side_data (&packet, AV_PKT_DATA_SKIP_SAMPLES,
+          10);
+      if (p != NULL) {
+        GstByteWriter writer;
+        guint32 start = clipping_meta->start;
+        guint32 end = clipping_meta->end;
+
+        num_clipped_samples = start + end;
+
+        gst_byte_writer_init_with_data (&writer, p, 10, FALSE);
+        gst_byte_writer_put_uint32_le (&writer, start);
+        gst_byte_writer_put_uint32_le (&writer, end);
+        GST_LOG_OBJECT (ffmpegdec, "buffer has clipping metadata; added skip "
+            "side data to avpacket with start %u and end %u", start, end);
+      }
+    } else {
+      GST_WARNING_OBJECT (ffmpegdec,
+          "buffer has clipping metadata in unsupported format %s",
+          gst_format_get_name (clipping_meta->format));
+    }
+  }
+
   if (avcodec_send_packet (ffmpegdec->context, &packet) < 0) {
+    av_packet_free_side_data (&packet);
     goto send_packet_failed;
   }
+  av_packet_free_side_data (&packet);
 
   do {
     /* decode a frame of audio now */
-    got_frame = gst_ffmpegauddec_frame (ffmpegdec, &ret);
+    got_frame = gst_ffmpegauddec_frame (ffmpegdec, &ret, &need_more_data);
 
     if (got_frame)
       got_any_frames = TRUE;
@@ -742,9 +791,18 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
       /* bad flow return, make sure we discard all data and exit */
       break;
     }
-  } while (got_frame);
+  } while (got_frame && !need_more_data);
 
-  if (is_header || got_any_frames) {
+  /* The frame was fully clipped if we have samples to be clipped and
+   * it's either more than the known fixed frame size, or the decoder returned
+   * that it needs more data (EAGAIN) and we didn't decode any frames at all.
+   */
+  fully_clipped = (clipping_meta != NULL && num_clipped_samples > 0)
+      && ((ffmpegdec->context->frame_size != 0
+          && num_clipped_samples >= ffmpegdec->context->frame_size)
+      || (need_more_data && !got_any_frames));
+
+  if (is_header || got_any_frames || fully_clipped) {
     /* Even if previous return wasn't GST_FLOW_OK, we need to call
      * _finish_frame() since baseclass is expecting that _finish_frame()
      * is followed by _finish_subframe()
@@ -779,12 +837,16 @@ not_negotiated:
 
 send_packet_failed:
   {
-    GST_WARNING_OBJECT (ffmpegdec, "decoding error");
-    /* Even if ffmpeg was not able to decode current audio frame,
-     * we should call gst_audio_decoder_finish_frame() so that baseclass
-     * can clear its internal status and can respect timestamp of later
-     * incoming buffers */
-    ret = gst_ffmpegauddec_drain (ffmpegdec, TRUE);
+    GST_AUDIO_DECODER_ERROR (ffmpegdec, 1, STREAM, DECODE, (NULL),
+        ("Audio decoding error"), ret);
+
+    if (ret == GST_FLOW_OK) {
+      /* Even if ffmpeg was not able to decode current audio frame,
+       * we should call gst_audio_decoder_finish_frame() so that baseclass
+       * can clear its internal status and can respect timestamp of later
+       * incoming buffers */
+      ret = gst_ffmpegauddec_drain (ffmpegdec, TRUE);
+    }
     goto unmap;
   }
 }
