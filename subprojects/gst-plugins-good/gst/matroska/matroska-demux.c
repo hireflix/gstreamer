@@ -210,7 +210,7 @@ GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (matroskademux, "matroskademux",
     GST_RANK_PRIMARY, GST_TYPE_MATROSKA_DEMUX, _do_init);
 
 static void
-gst_matroska_demux_finalize (GObject * object)
+gst_matroska_demux_finalize (GObject *object)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (object);
 
@@ -220,7 +220,7 @@ gst_matroska_demux_finalize (GObject * object)
 }
 
 static void
-gst_matroska_demux_class_init (GstMatroskaDemuxClass * klass)
+gst_matroska_demux_class_init (GstMatroskaDemuxClass *klass)
 {
   GObjectClass *gobject_class = (GObjectClass *) klass;
   GstElementClass *gstelement_class = (GstElementClass *) klass;
@@ -276,7 +276,7 @@ gst_matroska_demux_class_init (GstMatroskaDemuxClass * klass)
 }
 
 static void
-gst_matroska_demux_init (GstMatroskaDemux * demux)
+gst_matroska_demux_init (GstMatroskaDemux *demux)
 {
   demux->common.sinkpad = gst_pad_new_from_static_template (&sink_templ,
       "sink");
@@ -308,7 +308,7 @@ gst_matroska_demux_init (GstMatroskaDemux * demux)
 }
 
 static void
-gst_matroska_demux_reset (GstElement * element)
+gst_matroska_demux_reset (GstElement *element)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (element);
 
@@ -383,7 +383,7 @@ gst_matroska_demux_reset (GstElement * element)
 }
 
 static GstBuffer *
-gst_matroska_decode_buffer (GstMatroskaTrackContext * context, GstBuffer * buf)
+gst_matroska_decode_buffer (GstMatroskaTrackContext *context, GstBuffer *buf)
 {
   GstMapInfo map;
   gpointer data;
@@ -456,8 +456,8 @@ gst_matroska_decode_buffer (GstMatroskaTrackContext * context, GstBuffer * buf)
 }
 
 static void
-gst_matroska_demux_add_stream_headers_to_caps (GstMatroskaDemux * demux,
-    GstBufferList * list, GstCaps * caps)
+gst_matroska_demux_add_stream_headers_to_caps (GstMatroskaDemux *demux,
+    GstBufferList *list, GstCaps *caps)
 {
   GstStructure *s;
   GValue arr_val = G_VALUE_INIT;
@@ -481,8 +481,8 @@ gst_matroska_demux_add_stream_headers_to_caps (GstMatroskaDemux * demux,
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_mastering_metadata (GstMatroskaDemux * demux,
-    GstEbmlRead * ebml, GstMatroskaTrackVideoContext * video_context)
+gst_matroska_demux_parse_mastering_metadata (GstMatroskaDemux *demux,
+    GstEbmlRead *ebml, GstMatroskaTrackVideoContext *video_context)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstVideoMasteringDisplayInfo minfo;
@@ -575,8 +575,8 @@ beach:
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_colour (GstMatroskaDemux * demux, GstEbmlRead * ebml,
-    GstMatroskaTrackVideoContext * video_context)
+gst_matroska_demux_parse_colour (GstMatroskaDemux *demux, GstEbmlRead *ebml,
+    GstMatroskaTrackVideoContext *video_context)
 {
   GstFlowReturn ret;
   GstVideoColorimetry colorimetry;
@@ -695,8 +695,8 @@ beach:
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_stream (GstMatroskaDemux * demux, GstEbmlRead * ebml,
-    GstMatroskaTrackContext ** dest_context)
+gst_matroska_demux_parse_stream (GstMatroskaDemux *demux, GstEbmlRead *ebml,
+    GstMatroskaTrackContext **dest_context)
 {
   GstMatroskaTrackContext *context;
   GstCaps *caps = NULL;
@@ -1673,8 +1673,8 @@ gst_matroska_demux_parse_stream (GstMatroskaDemux * demux, GstEbmlRead * ebml,
 }
 
 static void
-gst_matroska_demux_add_stream (GstMatroskaDemux * demux,
-    GstMatroskaTrackContext * context)
+gst_matroska_demux_add_stream (GstMatroskaDemux *demux,
+    GstMatroskaTrackContext *context)
 {
   GstElementClass *klass = GST_ELEMENT_GET_CLASS (demux);
   gchar *padname = NULL;
@@ -1796,8 +1796,7 @@ gst_matroska_demux_add_stream (GstMatroskaDemux * demux,
 }
 
 static gboolean
-gst_matroska_demux_query (GstMatroskaDemux * demux, GstPad * pad,
-    GstQuery * query)
+gst_matroska_demux_query (GstMatroskaDemux *demux, GstPad *pad, GstQuery *query)
 {
   gboolean res = FALSE;
   GstMatroskaTrackContext *context = NULL;
@@ -1935,14 +1934,14 @@ gst_matroska_demux_query (GstMatroskaDemux * demux, GstPad * pad,
 }
 
 static gboolean
-gst_matroska_demux_element_query (GstElement * element, GstQuery * query)
+gst_matroska_demux_element_query (GstElement *element, GstQuery *query)
 {
   return gst_matroska_demux_query (GST_MATROSKA_DEMUX (element), NULL, query);
 }
 
 static gboolean
-gst_matroska_demux_handle_src_query (GstPad * pad, GstObject * parent,
-    GstQuery * query)
+gst_matroska_demux_handle_src_query (GstPad *pad, GstObject *parent,
+    GstQuery *query)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (parent);
 
@@ -1953,7 +1952,7 @@ gst_matroska_demux_handle_src_query (GstPad * pad, GstObject * parent,
  * otherwise TRUE (whatever the outcome of event sending),
  * takes ownership of the passed event! */
 static gboolean
-gst_matroska_demux_send_event (GstMatroskaDemux * demux, GstEvent * event)
+gst_matroska_demux_send_event (GstMatroskaDemux *demux, GstEvent *event)
 {
   gboolean ret = FALSE;
   gint i;
@@ -1978,7 +1977,7 @@ gst_matroska_demux_send_event (GstMatroskaDemux * demux, GstEvent * event)
 }
 
 static void
-gst_matroska_demux_send_tags (GstMatroskaDemux * demux)
+gst_matroska_demux_send_tags (GstMatroskaDemux *demux)
 {
   gint i;
 
@@ -2021,7 +2020,7 @@ gst_matroska_demux_send_tags (GstMatroskaDemux * demux)
 }
 
 static gboolean
-gst_matroska_demux_element_send_event (GstElement * element, GstEvent * event)
+gst_matroska_demux_element_send_event (GstElement *element, GstEvent *event)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (element);
   gboolean res;
@@ -2053,8 +2052,8 @@ gst_matroska_demux_element_send_event (GstElement * element, GstEvent * event)
 }
 
 static gboolean
-gst_matroska_demux_move_to_entry (GstMatroskaDemux * demux,
-    GstMatroskaIndex * entry, gboolean reset, gboolean update)
+gst_matroska_demux_move_to_entry (GstMatroskaDemux *demux,
+    GstMatroskaIndex *entry, gboolean reset, gboolean update)
 {
   gint i;
 
@@ -2099,7 +2098,7 @@ gst_matroska_demux_move_to_entry (GstMatroskaDemux * demux,
 }
 
 static gint
-gst_matroska_cluster_compare (gint64 * i1, gint64 * i2)
+gst_matroska_cluster_compare (gint64 *i1, gint64 *i2)
 {
   if (*i1 < *i2)
     return -1;
@@ -2112,7 +2111,7 @@ gst_matroska_cluster_compare (gint64 * i1, gint64 * i2)
 /* searches for a cluster start from @pos,
  * return GST_FLOW_OK and cluster position in @pos if found */
 static GstFlowReturn
-gst_matroska_demux_search_cluster (GstMatroskaDemux * demux, gint64 * pos,
+gst_matroska_demux_search_cluster (GstMatroskaDemux *demux, gint64 *pos,
     gboolean forward)
 {
   gint64 newpos = *pos;
@@ -2309,7 +2308,7 @@ cluster_status_get_nick (ClusterStatus status)
  *  001x.. = 3 bytes, etc.
  */
 static gboolean
-bit_reader_skip_ebml_num (GstBitReader * br)
+bit_reader_skip_ebml_num (GstBitReader *br)
 {
   guint8 i, v = 0;
 
@@ -2328,8 +2327,8 @@ bit_reader_skip_ebml_num (GstBitReader * br)
 #define MAX_CLUSTER_INFO_PROBE_LENGTH 256
 
 static gboolean
-gst_matroska_demux_peek_cluster_info (GstMatroskaDemux * demux,
-    ClusterInfo * cluster, guint64 offset)
+gst_matroska_demux_peek_cluster_info (GstMatroskaDemux *demux,
+    ClusterInfo *cluster, guint64 offset)
 {
   demux->common.offset = offset;
   demux->cluster_time = GST_CLOCK_TIME_NONE;
@@ -2451,8 +2450,8 @@ out:
 
 /* returns TRUE if the cluster offset was updated */
 static gboolean
-gst_matroska_demux_scan_back_for_keyframe_cluster (GstMatroskaDemux * demux,
-    gint64 * cluster_offset, GstClockTime * cluster_time)
+gst_matroska_demux_scan_back_for_keyframe_cluster (GstMatroskaDemux *demux,
+    gint64 *cluster_offset, GstClockTime *cluster_time)
 {
   GstClockTime stream_start_time = demux->stream_start_time;
   guint64 first_cluster_offset = demux->first_cluster_offset;
@@ -2543,7 +2542,7 @@ gst_matroska_demux_scan_back_for_keyframe_cluster (GstMatroskaDemux * demux,
 /* bisect and scan through file for cluster starting before @time,
  * returns fake index entry with corresponding info on cluster */
 static GstMatroskaIndex *
-gst_matroska_demux_search_pos (GstMatroskaDemux * demux, GstClockTime time)
+gst_matroska_demux_search_pos (GstMatroskaDemux *demux, GstClockTime time)
 {
   GstMatroskaIndex *entry = NULL;
   GstMatroskaReadState current_state;
@@ -2778,8 +2777,8 @@ exit:
 }
 
 static gboolean
-gst_matroska_demux_handle_seek_event (GstMatroskaDemux * demux,
-    GstPad * pad, GstEvent * event)
+gst_matroska_demux_handle_seek_event (GstMatroskaDemux *demux,
+    GstPad *pad, GstEvent *event)
 {
   GstMatroskaIndex *entry = NULL;
   GstMatroskaIndex scan_entry;
@@ -3098,8 +3097,8 @@ seek_error:
  * function handle seeks to build the seek indexes first.
  */
 static gboolean
-gst_matroska_demux_handle_seek_push (GstMatroskaDemux * demux, GstPad * pad,
-    GstEvent * event)
+gst_matroska_demux_handle_seek_push (GstMatroskaDemux *demux, GstPad *pad,
+    GstEvent *event)
 {
   GstSeekFlags flags;
   GstSeekType cur_type, stop_type;
@@ -3208,8 +3207,8 @@ gst_matroska_demux_handle_seek_push (GstMatroskaDemux * demux, GstPad * pad,
 }
 
 static gboolean
-gst_matroska_demux_handle_src_event (GstPad * pad, GstObject * parent,
-    GstEvent * event)
+gst_matroska_demux_handle_src_event (GstPad *pad, GstObject *parent,
+    GstEvent *event)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (parent);
   gboolean res = TRUE;
@@ -3321,8 +3320,8 @@ gst_matroska_demux_handle_src_event (GstPad * pad, GstObject * parent,
 }
 
 static gboolean
-gst_matroska_demux_handle_sink_query (GstPad * pad, GstObject * parent,
-    GstQuery * query)
+gst_matroska_demux_handle_sink_query (GstPad *pad, GstObject *parent,
+    GstQuery *query)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (parent);
   gboolean res = FALSE;
@@ -3362,7 +3361,7 @@ gst_matroska_demux_handle_sink_query (GstPad * pad, GstObject * parent,
 }
 
 static GstFlowReturn
-gst_matroska_demux_seek_to_previous_keyframe (GstMatroskaDemux * demux)
+gst_matroska_demux_seek_to_previous_keyframe (GstMatroskaDemux *demux)
 {
   GstFlowReturn ret = GST_FLOW_EOS;
   gboolean done = TRUE;
@@ -3415,7 +3414,7 @@ exit:
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_tracks (GstMatroskaDemux * demux, GstEbmlRead * ebml)
+gst_matroska_demux_parse_tracks (GstMatroskaDemux *demux, GstEbmlRead *ebml)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   guint32 id;
@@ -3468,7 +3467,7 @@ gst_matroska_demux_parse_tracks (GstMatroskaDemux * demux, GstEbmlRead * ebml)
 }
 
 static GstFlowReturn
-gst_matroska_demux_update_tracks (GstMatroskaDemux * demux, GstEbmlRead * ebml)
+gst_matroska_demux_update_tracks (GstMatroskaDemux *demux, GstEbmlRead *ebml)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   guint num_tracks_found = 0;
@@ -3587,7 +3586,7 @@ gst_matroska_demux_update_tracks (GstMatroskaDemux * demux, GstEbmlRead * ebml)
  */
 
 static gint
-gst_matroska_ebmlnum_uint (guint8 * data, guint size, guint64 * num)
+gst_matroska_ebmlnum_uint (guint8 *data, guint size, guint64 *num)
 {
   gint len_mask = 0x80, read = 1, n = 1, num_ffs = 0;
   guint64 total;
@@ -3624,7 +3623,7 @@ gst_matroska_ebmlnum_uint (guint8 * data, guint size, guint64 * num)
 }
 
 static gint
-gst_matroska_ebmlnum_sint (guint8 * data, guint size, gint64 * num)
+gst_matroska_ebmlnum_sint (guint8 *data, guint size, gint64 *num)
 {
   guint64 unum;
   gint res;
@@ -3648,7 +3647,7 @@ gst_matroska_ebmlnum_sint (guint8 * data, guint size, gint64 * num)
  */
 
 static void
-gst_matroska_demux_sync_streams (GstMatroskaDemux * demux)
+gst_matroska_demux_sync_streams (GstMatroskaDemux *demux)
 {
   GstClockTime gap_threshold;
   gint stream_nr;
@@ -3703,8 +3702,8 @@ gst_matroska_demux_sync_streams (GstMatroskaDemux * demux)
 }
 
 static GstFlowReturn
-gst_matroska_demux_push_stream_headers (GstMatroskaDemux * demux,
-    GstMatroskaTrackContext * stream)
+gst_matroska_demux_push_stream_headers (GstMatroskaDemux *demux,
+    GstMatroskaTrackContext *stream)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   gint i, num;
@@ -3740,8 +3739,8 @@ gst_matroska_demux_push_stream_headers (GstMatroskaDemux * demux,
 }
 
 static void
-gst_matroska_demux_push_dvd_clut_change_event (GstMatroskaDemux * demux,
-    GstMatroskaTrackContext * stream)
+gst_matroska_demux_push_dvd_clut_change_event (GstMatroskaDemux *demux,
+    GstMatroskaTrackContext *stream)
 {
   gchar *buf, *start;
 
@@ -3807,7 +3806,7 @@ gst_matroska_demux_push_dvd_clut_change_event (GstMatroskaDemux * demux,
 }
 
 static void
-gst_matroska_demux_push_codec_data_all (GstMatroskaDemux * demux)
+gst_matroska_demux_push_codec_data_all (GstMatroskaDemux *demux)
 {
   gint stream_nr;
 
@@ -3838,8 +3837,8 @@ gst_matroska_demux_push_codec_data_all (GstMatroskaDemux * demux)
 }
 
 static GstFlowReturn
-gst_matroska_demux_add_mpeg_seq_header (GstElement * element,
-    GstMatroskaTrackContext * stream, GstBuffer ** buf)
+gst_matroska_demux_add_mpeg_seq_header (GstElement *element,
+    GstMatroskaTrackContext *stream, GstBuffer **buf)
 {
   guint8 *seq_header;
   guint seq_header_len;
@@ -3885,8 +3884,8 @@ gst_matroska_demux_add_mpeg_seq_header (GstElement * element,
 }
 
 static GstFlowReturn
-gst_matroska_demux_add_wvpk_header (GstElement * element,
-    GstMatroskaTrackContext * stream, GstBuffer ** buf)
+gst_matroska_demux_add_wvpk_header (GstElement *element,
+    GstMatroskaTrackContext *stream, GstBuffer **buf)
 {
   GstMatroskaTrackAudioContext *audiocontext =
       (GstMatroskaTrackAudioContext *) stream;
@@ -4052,8 +4051,8 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
 }
 
 static GstFlowReturn
-gst_matroska_demux_add_prores_header (GstElement * element,
-    GstMatroskaTrackContext * stream, GstBuffer ** buf)
+gst_matroska_demux_add_prores_header (GstElement *element,
+    GstMatroskaTrackContext *stream, GstBuffer **buf)
 {
   GstBuffer *newbuf = gst_buffer_new_allocate (NULL, 8, NULL);
   GstMapInfo map;
@@ -4080,8 +4079,8 @@ gst_matroska_demux_add_prores_header (GstElement * element,
 
 /* @text must be null-terminated */
 static gboolean
-gst_matroska_demux_subtitle_chunk_has_tag (GstElement * element,
-    const gchar * text)
+gst_matroska_demux_subtitle_chunk_has_tag (GstElement *element,
+    const gchar *text)
 {
   gchar *tag;
 
@@ -4113,8 +4112,8 @@ gst_matroska_demux_subtitle_chunk_has_tag (GstElement * element,
 }
 
 static GstFlowReturn
-gst_matroska_demux_check_subtitle_buffer (GstElement * element,
-    GstMatroskaTrackContext * stream, GstBuffer ** buf)
+gst_matroska_demux_check_subtitle_buffer (GstElement *element,
+    GstMatroskaTrackContext *stream, GstBuffer **buf)
 {
   GstMatroskaTrackSubtitleContext *sub_stream;
   const gchar *encoding;
@@ -4220,8 +4219,8 @@ next:
 }
 
 static GstFlowReturn
-gst_matroska_demux_check_aac (GstElement * element,
-    GstMatroskaTrackContext * stream, GstBuffer ** buf)
+gst_matroska_demux_check_aac (GstElement *element,
+    GstMatroskaTrackContext *stream, GstBuffer **buf)
 {
   guint8 data[2];
   guint size;
@@ -4250,8 +4249,8 @@ gst_matroska_demux_check_aac (GstElement * element,
 }
 
 static GstBuffer *
-gst_matroska_demux_align_buffer (GstMatroskaDemux * demux,
-    GstBuffer * buffer, gsize alignment)
+gst_matroska_demux_align_buffer (GstMatroskaDemux *demux,
+    GstBuffer *buffer, gsize alignment)
 {
   GstMapInfo map;
 
@@ -4295,8 +4294,8 @@ typedef struct
 } BlockAddition;
 
 static GstFlowReturn
-gst_matroska_demux_parse_blockmore (GstMatroskaDemux * demux,
-    GstEbmlRead * ebml, GQueue * additions)
+gst_matroska_demux_parse_blockmore (GstMatroskaDemux *demux,
+    GstEbmlRead *ebml, GQueue *additions)
 {
   GstFlowReturn ret;
   guint32 id;
@@ -4355,8 +4354,8 @@ gst_matroska_demux_parse_blockmore (GstMatroskaDemux * demux,
  *    BLOCKADDITIONAL
  */
 static GstFlowReturn
-gst_matroska_demux_parse_blockadditions (GstMatroskaDemux * demux,
-    GstEbmlRead * ebml, GQueue * additions)
+gst_matroska_demux_parse_blockadditions (GstMatroskaDemux *demux,
+    GstEbmlRead *ebml, GQueue *additions)
 {
   GstFlowReturn ret;
   guint32 id;
@@ -4386,8 +4385,8 @@ gst_matroska_demux_parse_blockadditions (GstMatroskaDemux * demux,
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_blockgroup_or_simpleblock (GstMatroskaDemux * demux,
-    GstEbmlRead * ebml, guint64 cluster_time, guint64 cluster_offset,
+gst_matroska_demux_parse_blockgroup_or_simpleblock (GstMatroskaDemux *demux,
+    GstEbmlRead *ebml, guint64 cluster_time, guint64 cluster_offset,
     gboolean is_simpleblock)
 {
   GstMatroskaTrackContext *stream = NULL;
@@ -5140,7 +5139,7 @@ data_error:
 
 /* return FALSE if block(group) should be skipped (due to a seek) */
 static inline gboolean
-gst_matroska_demux_seek_block (GstMatroskaDemux * demux)
+gst_matroska_demux_seek_block (GstMatroskaDemux *demux)
 {
   if (G_UNLIKELY (demux->seek_block)) {
     if (!(--demux->seek_block)) {
@@ -5155,8 +5154,8 @@ gst_matroska_demux_seek_block (GstMatroskaDemux * demux)
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_contents_seekentry (GstMatroskaDemux * demux,
-    GstEbmlRead * ebml)
+gst_matroska_demux_parse_contents_seekentry (GstMatroskaDemux *demux,
+    GstEbmlRead *ebml)
 {
   GstFlowReturn ret;
   guint64 seek_pos = (guint64) - 1;
@@ -5309,7 +5308,7 @@ gst_matroska_demux_parse_contents_seekentry (GstMatroskaDemux * demux,
 }
 
 static GstFlowReturn
-gst_matroska_demux_parse_contents (GstMatroskaDemux * demux, GstEbmlRead * ebml)
+gst_matroska_demux_parse_contents (GstMatroskaDemux *demux, GstEbmlRead *ebml)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   guint32 id;
@@ -5358,7 +5357,7 @@ gst_matroska_demux_parse_contents (GstMatroskaDemux * demux, GstEbmlRead * ebml)
 #define MAX_BLOCK_SIZE (15 * 1024 * 1024)
 
 static inline GstFlowReturn
-gst_matroska_demux_check_read_size (GstMatroskaDemux * demux, guint64 bytes)
+gst_matroska_demux_check_read_size (GstMatroskaDemux *demux, guint64 bytes)
 {
   if (G_UNLIKELY (bytes > MAX_BLOCK_SIZE)) {
     /* only a few blocks are expected/allowed to be large,
@@ -5382,7 +5381,7 @@ gst_matroska_demux_check_read_size (GstMatroskaDemux * demux, guint64 bytes)
 
 /* returns TRUE if we truly are in error state, and should give up */
 static inline GstFlowReturn
-gst_matroska_demux_check_parse_error (GstMatroskaDemux * demux)
+gst_matroska_demux_check_parse_error (GstMatroskaDemux *demux)
 {
   if (!demux->streaming && demux->next_cluster_offset > 0) {
     /* just repositioning to where next cluster should be and try from there */
@@ -5413,7 +5412,7 @@ gst_matroska_demux_check_parse_error (GstMatroskaDemux * demux)
 }
 
 static inline GstFlowReturn
-gst_matroska_demux_flush (GstMatroskaDemux * demux, guint flush)
+gst_matroska_demux_flush (GstMatroskaDemux *demux, guint flush)
 {
   GST_LOG_OBJECT (demux, "skipping %d bytes", flush);
   demux->common.offset += flush;
@@ -5436,8 +5435,8 @@ gst_matroska_demux_flush (GstMatroskaDemux * demux, guint flush)
  * Returns EOS if insufficient available,
  * ERROR if too much was attempted to read. */
 static inline GstFlowReturn
-gst_matroska_demux_take (GstMatroskaDemux * demux, guint64 bytes,
-    GstEbmlRead * ebml)
+gst_matroska_demux_take (GstMatroskaDemux *demux, guint64 bytes,
+    GstEbmlRead *ebml)
 {
   GstBuffer *buffer = NULL;
   GstFlowReturn ret = GST_FLOW_OK;
@@ -5474,7 +5473,7 @@ exit:
 }
 
 static void
-gst_matroska_demux_check_seekability (GstMatroskaDemux * demux)
+gst_matroska_demux_check_seekability (GstMatroskaDemux *demux)
 {
   GstQuery *query;
   gboolean seekable = FALSE;
@@ -5511,7 +5510,7 @@ done:
 }
 
 static GstFlowReturn
-gst_matroska_demux_find_tracks (GstMatroskaDemux * demux)
+gst_matroska_demux_find_tracks (GstMatroskaDemux *demux)
 {
   guint32 id;
   guint64 before_pos;
@@ -5567,7 +5566,7 @@ G_STMT_START { \
 } G_STMT_END
 
 static GstFlowReturn
-gst_matroska_demux_parse_id (GstMatroskaDemux * demux, guint32 id,
+gst_matroska_demux_parse_id (GstMatroskaDemux *demux, guint32 id,
     guint64 length, guint needed)
 {
   GstEbmlRead ebml = { 0, };
@@ -5958,7 +5957,7 @@ seek_failed:
 }
 
 static void
-gst_matroska_demux_loop (GstPad * pad)
+gst_matroska_demux_loop (GstPad *pad)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (GST_PAD_PARENT (pad));
   GstFlowReturn ret;
@@ -6137,7 +6136,7 @@ pause:
  * Create and push a flushing seek event upstream
  */
 static gboolean
-perform_seek_to_offset (GstMatroskaDemux * demux, gdouble rate, guint64 offset,
+perform_seek_to_offset (GstMatroskaDemux *demux, gdouble rate, guint64 offset,
     guint32 seqnum, GstSeekFlags flags)
 {
   GstEvent *event;
@@ -6158,7 +6157,7 @@ perform_seek_to_offset (GstMatroskaDemux * demux, gdouble rate, guint64 offset,
 }
 
 static GstFlowReturn
-gst_matroska_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
+gst_matroska_demux_chain (GstPad *pad, GstObject *parent, GstBuffer *buffer)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (parent);
   guint available;
@@ -6230,8 +6229,8 @@ next:
 }
 
 static gboolean
-gst_matroska_demux_handle_sink_event (GstPad * pad, GstObject * parent,
-    GstEvent * event)
+gst_matroska_demux_handle_sink_event (GstPad *pad, GstObject *parent,
+    GstEvent *event)
 {
   gboolean res = TRUE;
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (parent);
@@ -6355,7 +6354,7 @@ gst_matroska_demux_handle_sink_event (GstPad * pad, GstObject * parent,
 }
 
 static gboolean
-gst_matroska_demux_sink_activate (GstPad * sinkpad, GstObject * parent)
+gst_matroska_demux_sink_activate (GstPad *sinkpad, GstObject *parent)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (parent);
   GstQuery *query;
@@ -6381,7 +6380,7 @@ gst_matroska_demux_sink_activate (GstPad * sinkpad, GstObject * parent)
 }
 
 static gboolean
-gst_matroska_demux_sink_activate_mode (GstPad * sinkpad, GstObject * parent,
+gst_matroska_demux_sink_activate_mode (GstPad *sinkpad, GstObject *parent,
     GstPadMode mode, gboolean active)
 {
   switch (mode) {
@@ -6402,9 +6401,9 @@ gst_matroska_demux_sink_activate_mode (GstPad * sinkpad, GstObject * parent,
 }
 
 static GstCaps *
-gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *
-    videocontext, const gchar * codec_id, guint8 * data, guint size,
-    gchar ** codec_name, guint32 * riff_fourcc)
+gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *videocontext,
+    const gchar *codec_id, guint8 *data, guint size, gchar **codec_name,
+    guint32 *riff_fourcc)
 {
   GstMatroskaTrackContext *context = (GstMatroskaTrackContext *) videocontext;
   GstCaps *caps = NULL;
@@ -6680,13 +6679,9 @@ gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *
     *codec_name = g_strdup_printf ("Dirac");
   } else if (!strcmp (codec_id, GST_MATROSKA_CODEC_ID_VIDEO_VP8)) {
     caps = gst_caps_new_empty_simple ("video/x-vp8");
-    if (videocontext->alpha_mode)
-      gst_caps_set_simple (caps, "codec-alpha", G_TYPE_BOOLEAN, TRUE, NULL);
     *codec_name = g_strdup_printf ("On2 VP8");
   } else if (!strcmp (codec_id, GST_MATROSKA_CODEC_ID_VIDEO_VP9)) {
     caps = gst_caps_new_empty_simple ("video/x-vp9");
-    if (videocontext->alpha_mode)
-      gst_caps_set_simple (caps, "codec-alpha", G_TYPE_BOOLEAN, TRUE, NULL);
     *codec_name = g_strdup_printf ("On2 VP9");
   } else if (!strcmp (codec_id, GST_MATROSKA_CODEC_ID_VIDEO_AV1)) {
     caps = gst_caps_new_simple ("video/x-av1",
@@ -6929,7 +6924,7 @@ aac_rate_idx (gint rate)
 }
 
 static gint
-aac_profile_idx (const gchar * codec_id)
+aac_profile_idx (const gchar *codec_id)
 {
   gint profile;
 
@@ -6962,9 +6957,9 @@ round_up_pow2 (guint n)
 #define AAC_SYNC_EXTENSION_TYPE 0x02b7
 
 static GstCaps *
-gst_matroska_demux_audio_caps (GstMatroskaTrackAudioContext *
-    audiocontext, const gchar * codec_id, guint8 * data, guint size,
-    gchar ** codec_name, guint16 * riff_audio_fmt, GstClockTime * lead_in_ts)
+gst_matroska_demux_audio_caps (GstMatroskaTrackAudioContext *audiocontext,
+    const gchar *codec_id, guint8 *data, guint size, gchar **codec_name,
+    guint16 *riff_audio_fmt, GstClockTime *lead_in_ts)
 {
   GstMatroskaTrackContext *context = (GstMatroskaTrackContext *) audiocontext;
   GstCaps *caps = NULL;
@@ -7374,8 +7369,8 @@ gst_matroska_demux_audio_caps (GstMatroskaTrackAudioContext *
 }
 
 static GstCaps *
-gst_matroska_demux_subtitle_caps (GstMatroskaTrackSubtitleContext *
-    subtitlecontext, const gchar * codec_id, gpointer data, guint size)
+gst_matroska_demux_subtitle_caps (GstMatroskaTrackSubtitleContext
+    *subtitlecontext, const gchar *codec_id, gpointer data, guint size)
 {
   GstCaps *caps = NULL;
   GstMatroskaTrackContext *context =
@@ -7441,7 +7436,7 @@ gst_matroska_demux_subtitle_caps (GstMatroskaTrackSubtitleContext *
 
 #if 0
 static void
-gst_matroska_demux_set_index (GstElement * element, GstIndex * index)
+gst_matroska_demux_set_index (GstElement *element, GstIndex *index)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (element);
 
@@ -7455,7 +7450,7 @@ gst_matroska_demux_set_index (GstElement * element, GstIndex * index)
 }
 
 static GstIndex *
-gst_matroska_demux_get_index (GstElement * element)
+gst_matroska_demux_get_index (GstElement *element)
 {
   GstIndex *result = NULL;
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (element);
@@ -7472,8 +7467,7 @@ gst_matroska_demux_get_index (GstElement * element)
 #endif
 
 static GstStateChangeReturn
-gst_matroska_demux_change_state (GstElement * element,
-    GstStateChange transition)
+gst_matroska_demux_change_state (GstElement *element, GstStateChange transition)
 {
   GstMatroskaDemux *demux = GST_MATROSKA_DEMUX (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
@@ -7499,8 +7493,8 @@ gst_matroska_demux_change_state (GstElement * element,
 }
 
 static void
-gst_matroska_demux_set_property (GObject * object,
-    guint prop_id, const GValue * value, GParamSpec * pspec)
+gst_matroska_demux_set_property (GObject *object,
+    guint prop_id, const GValue *value, GParamSpec *pspec)
 {
   GstMatroskaDemux *demux;
 
@@ -7525,8 +7519,8 @@ gst_matroska_demux_set_property (GObject * object,
 }
 
 static void
-gst_matroska_demux_get_property (GObject * object,
-    guint prop_id, GValue * value, GParamSpec * pspec)
+gst_matroska_demux_get_property (GObject *object,
+    guint prop_id, GValue *value, GParamSpec *pspec)
 {
   GstMatroskaDemux *demux;
 
